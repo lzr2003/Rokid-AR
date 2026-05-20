@@ -1,19 +1,17 @@
 [gd_scene load_steps=5 format=3 uid="uid://bmain00000001"]
 
-[ext_resource type="Script" uid="uid://ctestinteract01" path="res://scripts/test_interactable.gd" id="1"]
+[ext_resource type="Script" uid="uid://cnktjuewo0vsx" path="res://scripts/test_interactable.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://bxrrig0000001" path="res://scenes/xr_rig.tscn" id="2"]
-[ext_resource type="Script" uid="uid://cmainsetup0001" path="res://scripts/main_scene_setup.gd" id="3"]
+[ext_resource type="Script" uid="uid://bx8bdtmtel4re" path="res://scripts/main_scene_setup.gd" id="3"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_interactable"]
 size = Vector3(0.3, 0.3, 0.3)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
-size = Vector2(10, 10)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("3")
 
 [node name="XRRig" parent="." instance=ExtResource("2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6918684, 0)
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 5, 2)
@@ -40,7 +38,3 @@ script = ExtResource("1")
 
 [node name="Mesh" type="MeshInstance3D" parent="WorldInteractables/InteractableCube3"]
 mesh = SubResource("BoxMesh_interactable")
-
-[node name="Ground" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2)
-mesh = SubResource("PlaneMesh_ground")

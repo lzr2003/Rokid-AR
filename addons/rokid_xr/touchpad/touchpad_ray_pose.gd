@@ -62,14 +62,16 @@ func _on_module_released() -> void:
 func _on_touchpad_moved(delta: Vector2) -> void:
 	pitch += delta.y
 	yaw += delta.x
+	_clamp_angles_to_fov()
 	_apply_rotation()
-	_clamp_to_fov()
 
 
 func _apply_rotation() -> void:
 	rotation = Vector3(0.0, 0.0, 0.0)
 	rotate_y(deg_to_rad(yaw))
 	rotate_object_local(Vector3.RIGHT, deg_to_rad(pitch))
+	if render_camera:
+		global_position = render_camera.global_position
 
 
 func reset_pose() -> void:
@@ -80,39 +82,23 @@ func reset_pose() -> void:
 		global_basis = render_camera.global_basis
 
 
-func _clamp_to_fov() -> void:
+func _clamp_angles_to_fov() -> void:
 	if render_camera == null:
 		return
 
 	if not _fov_cached:
 		_cache_fov()
 
-	# 将射线终点从世界空间转换到相机本地空间
-	global_position = render_camera.global_position
-	var forward: Vector3 = -global_transform.basis.z
-	var endpoint: Vector3 = global_position + forward * 10.0
+	if _half_fov_tan == Vector4():
+		return
 
-	var camera_transform: Transform3D = render_camera.global_transform
-	var local_endpoint: Vector3 = camera_transform.affine_inverse() * endpoint
+	# 根据 FOV 半角直接限制 yaw/pitch 范围
+	var half_fov_h: float = rad_to_deg(atan(_half_fov_tan.x))
+	var half_fov_v: float = rad_to_deg(atan(_half_fov_tan.y))
+	var margin: float = 1.0  # 1度边距
 
-	# 获取相机视锥体在 z=local_endpoint.z 处的边界
-	var half_fov: Vector4 = _half_fov_tan
-	var frustum_height: float = abs(local_endpoint.z) * half_fov.y * 2.0
-	var frustum_width: float = abs(local_endpoint.z) * half_fov.x * 2.0
-
-	# 裁剪 X/Y 到视锥体范围内（留出光标边距）
-	var margin_x: float = cursor_margin.x + cursor_margin.z
-	var margin_y: float = cursor_margin.y + cursor_margin.w
-	var clamped_x: float = clampf(local_endpoint.x, -frustum_width / 2.0 + margin_x, frustum_width / 2.0 - margin_x)
-	var clamped_y: float = clampf(local_endpoint.y, -frustum_height / 2.0 + margin_y, frustum_height / 2.0 - margin_y)
-
-	# 转换回世界空间
-	var clamped_local: Vector3 = Vector3(clamped_x, clamped_y, local_endpoint.z)
-	var clamped_world: Vector3 = camera_transform * clamped_local
-	var new_forward: Vector3 = (clamped_world - global_position).normalized()
-
-	if new_forward.length_squared() > 0.001:
-		look_at(global_position + new_forward, Vector3.UP)
+	yaw = clampf(yaw, -half_fov_h + margin, half_fov_h - margin)
+	pitch = clampf(pitch, -half_fov_v + margin, half_fov_v - margin)
 
 
 func _cache_fov() -> void:
