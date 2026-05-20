@@ -1,0 +1,8 @@
+[config]
+name = "Rokid XR Plugin"
+binary_type = "local"
+binary = "openxr_loader.aar"
+
+[dependencies]
+remote = []
+local = []
