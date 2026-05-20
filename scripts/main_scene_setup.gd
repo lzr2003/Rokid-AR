@@ -146,71 +146,83 @@ func _on_tpad_released() -> void:
 
 # --- 每帧更新 ---
 
+var _diag_joypads: String = ""
+var _diag_xr_trackers: String = ""
+var _diag_events_received: String = ""
+var _diag_last_event: String = "none"
+var _diag_scanned: bool = false
+
+
+func _scan_diagnostics() -> void:
+	if _diag_scanned:
+		return
+	_diag_scanned = true
+
+	# 手柄
+	var jps := Input.get_connected_joypads()
+	if jps.is_empty():
+		_diag_joypads = "none"
+	else:
+		_diag_joypads = ""
+		for j in jps:
+			_diag_joypads += "%d:%s " % [j, Input.get_joy_name(j)]
+
+	# XR 追踪器
+	_diag_xr_trackers = ""
+	for name in ["head", "left", "right", "/user/hand/left", "/user/hand/right"]:
+		var tr := XRServer.get_tracker(name)
+		if tr:
+			var ins: Array = tr.get_available_inputs()
+			_diag_xr_trackers += "%s(%s) " % [name, str(ins) if not ins.is_empty() else "no_inputs"]
+
+
 func _process(_delta: float) -> void:
 	_log_counter += 1
-	var print_to_console := _log_counter % 60 == 0
+	_scan_diagnostics()
 
 	var text: String = ""
-	text += "%s on %s\n" % [
-		"3DOF" if _use_three_dof else "TPAD",
-		OS.get_model_name()
+	text += "Dev:%s XR:%s 3DOF:%s\n" % [
+		OS.get_model_name(),
+		"ON" if RokidXR and RokidXR.is_ready() else "OFF",
+		"YES" if _use_three_dof else "NO"
 	]
 
-	# --- 输入 ---
-	text += "touch:%s d(%+.1f,%+.1f) m:%d p:%d/%d\n" % [
+	# --- 输入诊断 ---
+	text += "Event[%d]:%s\n" % [_tpad_move_count, _diag_last_event]
+	text += "Touch:%s d(%.0f,%.0f) P:%d R:%d\n" % [
 		_tpad_touching, _tpad_latest_delta.x, _tpad_latest_delta.y,
-		_tpad_move_count, _tpad_press_count, _tpad_release_count
+		_tpad_press_count, _tpad_release_count
 	]
+	text += "Joy:%s\n" % _diag_joypads
+	text += "XRTracker:%s\n" % _diag_xr_trackers
 
-	# --- Station 2 IMU ---
-	if _use_three_dof and _three_dof_ray_pose:
-		var td := _three_dof_ray_pose
-		var fwd: Vector3 = -td.global_transform.basis.z
-		text += "IMU: cal=%s fwd(%.2f,%.2f,%.2f)\n" % [
-			Station2IMU.is_calibrated(), fwd.x, fwd.y, fwd.z
-		]
-		if print_to_console:
-			print("[3DOF] cal=%s fwd=(%.2f,%.2f,%.2f) quat=%s" % [
-				Station2IMU.is_calibrated(), fwd.x, fwd.y, fwd.z, td.quaternion
-			])
+	# --- IMU ---
+	if _three_dof_ray_pose:
+		var fwd: Vector3 = -_three_dof_ray_pose.global_transform.basis.z
+		text += "IMU(%.2f,%.2f,%.2f)\n" % [fwd.x, fwd.y, fwd.z]
 
-	# --- TouchPad 旋转 ---
-	if not _use_three_dof and _touchpad_ray_pose:
-		var tp := _touchpad_ray_pose
-		var fwd: Vector3 = -tp.global_transform.basis.z
-		text += "TP:y%.0f p%.0f fwd(%.2f,%.2f,%.2f)\n" % [tp.yaw, tp.pitch, fwd.x, fwd.y, fwd.z]
-		if print_to_console:
-			print("[TP] yaw=%.1f pitch=%.1f fwd=(%.2f,%.2f,%.2f)" % [tp.yaw, tp.pitch, fwd.x, fwd.y, fwd.z])
-
-	# --- 活跃射线 ---
+	# --- 射线 ---
 	if _active_ray_interactor:
 		var ri := _active_ray_interactor
-		var state_names: Array[String] = ["N", "H", "S", "D"]
-		var dist: float = ri.ray_end.distance_to(ri.ray_origin)
-		var cinfo: Dictionary = ri.collision_info
-		var is_hit: bool = cinfo.get("hit", false)
-		text += "Ray:%s %.1fm " % [state_names[ri.state], dist]
-		if is_hit:
-			var hit_pt: Vector3 = cinfo.get("point", Vector3.ZERO)
-			text += "HIT(%.1f,%.1f,%.1f)" % [hit_pt.x, hit_pt.y, hit_pt.z]
-		else:
-			text += "no hit"
-
-		if print_to_console:
-			print("[Ray] state=%s dist=%.1f hit=%s" % [state_names[ri.state], dist, str(is_hit)])
+		var names: Array[String] = ["N", "H", "S", "D"]
+		var d: float = ri.ray_end.distance_to(ri.ray_origin)
+		var is_hit: bool = ri.collision_info.get("hit", false)
+		text += "Ray:%s %.1fm %s" % [names[ri.state], d, "HIT" if is_hit else "---"]
 
 	if _debug_label_3d:
 		_debug_label_3d.text = text
 
 
 func _input(event: InputEvent) -> void:
+	# 记录所有事件类型到 HUD
+	_diag_last_event = event.as_text().substr(0, 30)
+	_diag_events_received = _diag_last_event
+
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if key_event.keycode == KEY_SPACE and key_event.pressed and not key_event.echo:
 			if TouchpadInput.is_active():
 				TouchpadInput.release_module()
 				_tpad_touching = false
-				print("TouchpadInput DEACTIVATED")
 			else:
 				TouchpadInput.activate_module(true)
-				print("TouchpadInput ACTIVATED")
