@@ -7,6 +7,7 @@ const FILTER_ALPHA: float = 0.02
 
 signal orientation_changed(quat: Quaternion)
 signal imu_recentered()
+signal gesture_click()
 
 var orientation: Quaternion = Quaternion.IDENTITY
 
@@ -16,6 +17,12 @@ var _sample_count: int = 0
 var _samples: Array = []
 var _log_timer: float = 0.0
 var _use_xr: bool = false
+
+# 手势检测：快速翻转 → 点击
+const SHAKE_THRESHOLD: float = 5.0       # rad/s, 约 286°/s
+const GESTURE_COOLDOWN: float = 0.8       # 两次手势间最少间隔
+var _gesture_cooldown_timer: float = 0.0
+var _was_shaking: bool = false
 
 
 func _ready() -> void:
@@ -31,6 +38,18 @@ func _start_calibration() -> void:
 
 
 func _process(delta: float) -> void:
+	# 1. 优先：RokidXR GDExtension get_phone_pose()（直接读 Station 2 IMU）
+	if RokidXR and RokidXR.is_ready():
+		var pose: Dictionary = RokidXR.get_phone_pose()
+		if not pose.is_empty() and pose.has("orientation"):
+			var q: Quaternion = pose["orientation"]
+			# Unity SDK: data[2] = -data[2] 坐标转换
+			orientation = Quaternion(q.x, q.y, -q.z, q.w)
+			orientation_changed.emit(orientation)
+			_log_rokid(delta)
+			return
+
+	# 2. OpenXR 头部追踪
 	var xr_orient: Variant = _get_xr_head_orientation()
 	if xr_orient != null:
 		if not _use_xr:
@@ -41,6 +60,7 @@ func _process(delta: float) -> void:
 		_log_xr(delta)
 		return
 
+	# 3. 兜底：Godot Input 传感器
 	var gyro: Vector3 = Input.get_gyroscope()
 
 	if not _calibrated:
@@ -92,6 +112,15 @@ func _update_orientation(gyro: Vector3, delta: float) -> void:
 
 	orientation = orientation.normalized()
 	orientation_changed.emit(orientation)
+
+
+func _log_rokid(delta: float) -> void:
+	_log_timer += delta
+	if _log_timer > 2.0:
+		_log_timer = 0.0
+		print("[Station2IMU] RokidXR phone_pose orient=(%.2f,%.2f,%.2f,%.2f)" % [
+			orientation.x, orientation.y, orientation.z, orientation.w
+		])
 
 
 func _log_xr(delta: float) -> void:

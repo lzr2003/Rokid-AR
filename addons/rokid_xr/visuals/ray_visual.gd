@@ -97,6 +97,9 @@ func _update_material_color() -> void:
 		(material_override as StandardMaterial3D).emission = color
 
 
+var _cursor_dot: MeshInstance3D
+
+
 func _update_visual() -> void:
 	if ray_interactor == null:
 		return
@@ -109,6 +112,10 @@ func _update_visual() -> void:
 	_update_material_color()
 	_mesh.clear_surfaces()
 
+	# 找到 CursorDot 兄弟节点
+	if _cursor_dot == null:
+		_cursor_dot = _find_cursor_dot()
+
 	var origin: Vector3 = ray_interactor.ray_origin
 	var forward: Vector3 = ray_interactor.ray_forward
 	var interpolated_end: Vector3
@@ -119,14 +126,14 @@ func _update_visual() -> void:
 			_draw_straight_ray(origin, interpolated_end)
 
 		InteractionEnums.InteractorState.HOVER:
-			if ray_interactor.collision_info.hit:
+			if ray_interactor.collision_info["hit"]:
 				interpolated_end = ray_interactor.ray_end
 			else:
 				interpolated_end = origin + forward * normal_ray_length
 			_draw_straight_ray(origin, interpolated_end)
 
 		InteractionEnums.InteractorState.SELECT:
-			if ray_interactor.collision_info.hit:
+			if ray_interactor.collision_info["hit"]:
 				interpolated_end = ray_interactor.ray_end
 				if _use_bezier and _bezier_drag_target.length_squared() > 0.001:
 					_draw_bezier_ray(origin, interpolated_end)
@@ -135,6 +142,20 @@ func _update_visual() -> void:
 			else:
 				interpolated_end = origin + forward * normal_ray_length
 				_draw_straight_ray(origin, interpolated_end)
+
+	# ★ 光标点跟随射线终点
+	if _cursor_dot:
+		_cursor_dot.global_position = interpolated_end
+		_cursor_dot.show()
+
+
+func _find_cursor_dot() -> MeshInstance3D:
+	var p := get_parent()
+	if p:
+		for c in p.get_children():
+			if c is MeshInstance3D and c != self:
+				return c
+	return null
 
 
 func _draw_straight_ray(start: Vector3, end: Vector3) -> void:

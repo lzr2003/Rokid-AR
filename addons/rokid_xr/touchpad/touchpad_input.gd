@@ -42,6 +42,24 @@ func _detect_device() -> void:
 	for jp in joypads:
 		print("[TouchpadInput] joypad[%d] name=%s" % [jp, Input.get_joy_name(jp)])
 
+	# 扫描 XR 追踪器（识别控制器按钮/触控板路径）
+	_scan_xr_trackers()
+
+
+func _scan_xr_trackers() -> void:
+	# 常见 XR 控制器追踪器名称
+	var tracker_names := ["head", "left", "right",
+		"/user/hand/left", "/user/hand/right",
+		"/user/head"]
+	for name in tracker_names:
+		var tracker: XRPositionalTracker = XRServer.get_tracker(name)
+		if tracker:
+			print("[TouchpadInput] XR tracker '%s': type=%s" % [name, tracker.get_tracker_type()])
+			# 列出可用的输入
+			var inputs: Array = tracker.get_available_inputs()
+			if not inputs.is_empty():
+				print("[TouchpadInput]   inputs: %s" % str(inputs))
+
 
 func _input(event: InputEvent) -> void:
 	if not _is_active:
@@ -181,8 +199,9 @@ var _joy_log_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
-	# 对 Station 2：轮询手柄按钮（可能不通过 _input 事件）
+	# 对 Station 2：轮询 XR 追踪器 + 手柄按钮
 	if _is_station2:
+		_poll_xr_tracker(delta)
 		_poll_joypad(delta)
 
 	# 对所有模式：有 _dpad_vec 且 _is_touching 时持续移动
@@ -195,6 +214,25 @@ func _process(delta: float) -> void:
 	elif not _is_touching:
 		_dpad_hold_time = 0.0
 		_dpad_vec = Vector2.ZERO
+
+
+var _xr_log_timer: float = 0.0
+
+
+func _poll_xr_tracker(delta: float) -> void:
+	_xr_log_timer += delta
+	for name in ["right", "/user/hand/right", "left", "/user/hand/left"]:
+		var tracker: XRPositionalTracker = XRServer.get_tracker(name)
+		if tracker == null:
+			continue
+		var inputs: Array = tracker.get_available_inputs()
+		if inputs.is_empty():
+			continue
+		for input_name in inputs:
+			var val = tracker.get_input(input_name)
+			if val != null and val != 0.0 and val != false:
+				if _xr_log_timer > 2.0:
+					print("[TouchpadInput] XR input '%s/%s' = %s" % [name, input_name, str(val)])
 
 
 func _poll_joypad(delta: float) -> void:
