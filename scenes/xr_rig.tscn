@@ -1,10 +1,10 @@
-[gd_scene load_steps=12 format=3 uid="uid://bxrrig0000001"]
+[gd_scene load_steps=7 format=3 uid="uid://bxrrig0000001"]
 
-[ext_resource type="Script" uid="uid://ctpadraypose01" path="res://addons/rokid_xr/touchpad/touchpad_ray_pose.gd" id="1"]
-[ext_resource type="Script" uid="uid://crayinteract01" path="res://addons/rokid_xr/interaction/ray_interactor.gd" id="2"]
-[ext_resource type="Script" uid="uid://crayvisual0001" path="res://addons/rokid_xr/visuals/ray_visual.gd" id="3"]
-[ext_resource type="Script" uid="uid://ctpadselector01" path="res://addons/rokid_xr/interaction/touchpad_selector.gd" id="4"]
-[ext_resource type="Script" uid="uid://cthreedofpose01" path="res://addons/rokid_xr/controller/three_dof_ray_pose.gd" id="5"]
+[ext_resource type="Script" uid="uid://ccx5u5ai85b7v" path="res://addons/rokid_xr/touchpad/touchpad_ray_pose.gd" id="1"]
+[ext_resource type="Script" uid="uid://bs1k1f0f8jiaf" path="res://addons/rokid_xr/interaction/ray_interactor.gd" id="2"]
+[ext_resource type="Script" uid="uid://behl11tjutmsi" path="res://addons/rokid_xr/visuals/ray_visual.gd" id="3"]
+[ext_resource type="Script" uid="uid://0nl74cby8ylc" path="res://addons/rokid_xr/interaction/touchpad_selector.gd" id="4"]
+[ext_resource type="Script" uid="uid://cn3gsw011ped0" path="res://addons/rokid_xr/controller/three_dof_ray_pose.gd" id="5"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_cursor"]
 size = Vector3(0.06, 0.06, 0.06)
@@ -13,30 +13,22 @@ size = Vector3(0.06, 0.06, 0.06)
 
 [node name="XRCamera3D" type="XRCamera3D" parent="."]
 
-; --- ThreeDof (Station 2 IMU) --- 挂在相机下，位置自动跟随头部
 [node name="ThreeDofRayPose" type="Node3D" parent="XRCamera3D"]
 script = ExtResource("5")
 
 [node name="RayInteractor3D" type="Node3D" parent="XRCamera3D/ThreeDofRayPose"]
 script = ExtResource("2")
-max_ray_length = 5.0
-drag_threshold = 0.01
-click_time = 0.5
 
 [node name="RayVisual" type="MeshInstance3D" parent="XRCamera3D/ThreeDofRayPose/RayInteractor3D"]
 script = ExtResource("3")
 ray_width = 0.02
-normal_ray_length = 5.0
-bezier_segments = 16
 
 [node name="CursorDot" type="MeshInstance3D" parent="XRCamera3D/ThreeDofRayPose/RayInteractor3D"]
 mesh = SubResource("BoxMesh_cursor")
-visible = true
 
 [node name="TouchPadSelector3D" type="Node" parent="XRCamera3D"]
 script = ExtResource("4")
 
-; --- TouchPad（触控板/桌面鼠标）---
 [node name="TouchPadInteractor" type="Node3D" parent="."]
 visible = false
 
@@ -45,19 +37,14 @@ script = ExtResource("1")
 
 [node name="RayInteractorTP" type="Node3D" parent="TouchPadInteractor/TouchPadRayPose"]
 script = ExtResource("2")
-max_ray_length = 5.0
-drag_threshold = 0.01
-click_time = 0.5
 
 [node name="RayVisual" type="MeshInstance3D" parent="TouchPadInteractor/TouchPadRayPose/RayInteractorTP"]
 script = ExtResource("3")
 ray_width = 0.003
-normal_ray_length = 5.0
-bezier_segments = 16
 
 [node name="CursorDot" type="MeshInstance3D" parent="TouchPadInteractor/TouchPadRayPose/RayInteractorTP"]
-mesh = SubResource("BoxMesh_cursor")
 visible = false
+mesh = SubResource("BoxMesh_cursor")
 
 [node name="TouchPadSelector" type="Node" parent="TouchPadInteractor"]
 script = ExtResource("4")

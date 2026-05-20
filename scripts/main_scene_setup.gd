@@ -151,7 +151,7 @@ var _diag_xr_trackers: String = ""
 var _diag_events_received: String = ""
 var _diag_last_event: String = "none"
 
-
+func _has_rokid_xr() -> bool:
 	return Engine.has_singleton("RokidXR") and Engine.get_singleton("RokidXR").is_ready()
 var _diag_scanned: bool = false
 
