@@ -111,23 +111,7 @@ func _cache_fov() -> void:
 	if render_camera == null:
 		return
 
-	# 方法1：从 CameraAttributesPractical 获取 FOV
-	var attributes: CameraAttributes = render_camera.get_camera_attributes()
-	if attributes and attributes is CameraAttributesPractical:
-		var fov_deg: float = (attributes as CameraAttributesPractical).fov
-		var aspect: float = get_viewport().get_visible_rect().size.aspect()
-		var vfov_rad: float = deg_to_rad(fov_deg)
-		var hfov_rad: float = 2.0 * atan(tan(vfov_rad / 2.0) * aspect)
-		_half_fov_tan = Vector4(
-			tan(hfov_rad / 2.0),
-			tan(vfov_rad / 2.0),
-			tan(hfov_rad / 2.0),
-			tan(vfov_rad / 2.0)
-		)
-		_fov_cached = true
-		return
-
-	# 方法2：从投影矩阵反推
+	# XRCamera3D 不支持 get_camera_attributes，直接从投影矩阵反推 FOV
 	var proj: Projection = render_camera.get_camera_projection()
 	var vfov_rad: float = 2.0 * atan(1.0 / proj[1][1])
 	var hfov_rad: float = 2.0 * atan(1.0 / proj[0][0])
