@@ -54,10 +54,13 @@ func _setup_debug_label_3d() -> void:
 
 	_debug_label_3d = Label3D.new()
 	_debug_label_3d.name = "DebugLabel3D"
-	_debug_label_3d.position = Vector3(0, 0.5, -1.5)
+	_debug_label_3d.position = Vector3(0.0, 0.0, -1.5)
 	_debug_label_3d.modulate = Color(0, 1, 0, 0.95)
-	_debug_label_3d.font_size = 72
-	_debug_label_3d.pixel_size = 0.0005
+	_debug_label_3d.font_size = 56
+	_debug_label_3d.pixel_size = 0.0004
+	_debug_label_3d.width = 2000.0
+	_debug_label_3d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_debug_label_3d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_debug_label_3d.text = "Loading..."
 	_xr_camera.add_child(_debug_label_3d)
 
@@ -86,48 +89,42 @@ func _process(_delta: float) -> void:
 
 	var print_to_console := _log_counter % 60 == 0
 
-	var text := "=== Rokid XR Debug ===\n"
+	var text: String = ""
 
-	# --- 输入状态 ---
-	text += "[Input] %s  mode:%s\n" % [
-		"ACTIVE" if TouchpadInput.is_active() else "INACTIVE",
-		"Mouse" if not OS.get_name() == "Android" else "Touch"
+	# --- 输入 ---
+	text += "t:%s d(%+.1f,%+.1f) m:%d p:%d/%d\n" % [
+		_tpad_touching,
+		_tpad_latest_delta.x, _tpad_latest_delta.y,
+		_tpad_move_count,
+		_tpad_press_count, _tpad_release_count
 	]
-	text += "  touching:%s  press:%d  rel:%d\n" % [_tpad_touching, _tpad_press_count, _tpad_release_count]
-	text += "  delta:(%+.2f, %+.2f)  moves:%d\n" % [_tpad_latest_delta.x, _tpad_latest_delta.y, _tpad_move_count]
 
-	# --- 旋转状态 ---
+	# --- 旋转 ---
 	if _touchpad_ray_pose:
 		var tpr := _touchpad_ray_pose
 		var fwd: Vector3 = -tpr.global_transform.basis.z
-		text += "\n[Rotation]\n"
-		text += "  yaw:%.2f  pitch:%.2f\n" % [tpr.yaw, tpr.pitch]
-		text += "  fwd:(%.3f, %.3f, %.3f)\n" % [fwd.x, fwd.y, fwd.z]
+		text += "y:%.0f p:%.0f f:(%.2f,%.2f,%.2f)\n" % [tpr.yaw, tpr.pitch, fwd.x, fwd.y, fwd.z]
 
 		if print_to_console:
 			print("[TPR] yaw=%.1f pitch=%.1f fwd=(%.2f,%.2f,%.2f)" % [tpr.yaw, tpr.pitch, fwd.x, fwd.y, fwd.z])
 
-	# --- 射线交互器 ---
+	# --- 射线 ---
 	if _ray_interactor:
 		var ri := _ray_interactor
-		var state_names: Array[String] = ["NORMAL", "HOVER", "SELECT", "DISABLED"]
-		var state_name: String = state_names[ri.state]
+		var state_names: Array[String] = ["N", "H", "S", "D"]
 		var dist: float = ri.ray_end.distance_to(ri.ray_origin)
 		var cinfo: Dictionary = ri.collision_info
 		var is_hit: bool = cinfo.get("hit", false)
-		var hit_pt: Vector3 = cinfo.get("point", Vector3.ZERO)
-		text += "\n[Ray]\n"
-		text += "  state:%s  len:%.1fm\n" % [state_name, dist]
-		text += "  origin:(%.2f,%.2f,%.2f)\n" % [ri.ray_origin.x, ri.ray_origin.y, ri.ray_origin.z]
-		text += "  end:   (%.2f,%.2f,%.2f)\n" % [ri.ray_end.x, ri.ray_end.y, ri.ray_end.z]
+		text += "R:%s %.1fm " % [state_names[ri.state], dist]
 		if is_hit:
-			text += "  HIT @ (%.2f,%.2f,%.2f)" % [hit_pt.x, hit_pt.y, hit_pt.z]
+			var hit_pt: Vector3 = cinfo.get("point", Vector3.ZERO)
+			text += "HIT(%.1f,%.1f,%.1f)" % [hit_pt.x, hit_pt.y, hit_pt.z]
 		else:
-			text += "  no hit"
+			text += "no hit"
 
 		if print_to_console:
 			print("[RI] state=%s origin=(%.1f,%.1f,%.1f) end=(%.1f,%.1f,%.1f) hit=%s" % [
-				state_name,
+				state_names[ri.state],
 				ri.ray_origin.x, ri.ray_origin.y, ri.ray_origin.z,
 				ri.ray_end.x, ri.ray_end.y, ri.ray_end.z,
 				str(is_hit)
