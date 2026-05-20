@@ -1,6 +1,6 @@
 extends Node
 ## 全局触控板/控制器输入捕获（Autoload）
-## 参考 Unity SDK: Station 2 走 Mouse 模式，D-pad 用 KEY 事件
+## 双重兼容 + Station 2 XR tracker 扫描
 
 const X_MOVE_SCALE: float = 0.14
 const Y_MOVE_SCALE: float = 0.7
@@ -17,13 +17,13 @@ var _is_active: bool = false
 var _use_mouse_mode: bool = false
 var _is_station2: bool = false
 
-# D-pad 状态
 var _dpad_hold_time: float = 0.0
 var _dpad_vec: Vector2 = Vector2.ZERO
-
-# 调试
 var _event_count: int = 0
 var _last_event_type: String = "none"
+
+var _joy_log_timer: float = 0.0
+var _xr_log_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -36,29 +36,34 @@ func _detect_device() -> void:
 	_is_station2 = "RG-station" in model
 	print("[TouchpadInput] model=%s station2=%s" % [model, _is_station2])
 
-	# 检测所有已连接的游戏手柄
 	var joypads := Input.get_connected_joypads()
-	print("[TouchpadInput] connected joypads: %s" % str(joypads))
+	print("[TouchpadInput] joypads: %s" % str(joypads))
 	for jp in joypads:
 		print("[TouchpadInput] joypad[%d] name=%s" % [jp, Input.get_joy_name(jp)])
 
-	# 扫描 XR 追踪器（识别控制器按钮/触控板路径）
 	_scan_xr_trackers()
 
 
 func _scan_xr_trackers() -> void:
-	# 常见 XR 控制器追踪器名称
-	var tracker_names := ["head", "left", "right",
-		"/user/hand/left", "/user/hand/right",
-		"/user/head"]
+	var tracker_names: Array[String] = ["head", "left", "right",
+		"/user/hand/left", "/user/hand/right", "/user/head"]
 	for name in tracker_names:
 		var tracker: XRPositionalTracker = XRServer.get_tracker(name)
-		if tracker:
-			print("[TouchpadInput] XR tracker '%s': type=%s" % [name, tracker.get_tracker_type()])
-			# 列出可用的输入
-			var inputs: Array = tracker.get_available_inputs()
-			if not inputs.is_empty():
-				print("[TouchpadInput]   inputs: %s" % str(inputs))
+		if tracker == null:
+			continue
+		var found: String = ""
+		# 尝试已知的 XR 控制器输入名
+		for pn in ["trigger", "trigger_click", "trigger_touch",
+			"grip", "grip_click", "grip_force",
+			"primary", "primary_click", "primary_touch",
+			"menu_button", "select_button",
+			"ax_button", "by_button",
+			"trackpad", "trackpad_click", "trackpad_touch",
+			"thumbstick", "thumbstick_click"]:
+			var v = tracker.get_input(pn)
+			if v != null and v != 0.0 and v != false:
+				found += pn + " "
+		print("[TouchpadInput] XR '%s': %s" % [name, found if found != "" else "no inputs"])
 
 
 func _input(event: InputEvent) -> void:
@@ -66,21 +71,15 @@ func _input(event: InputEvent) -> void:
 		return
 
 	_event_count += 1
-
-	# ★ 每 10 个事件打印类型，诊断输入来源
 	if _event_count <= 20 or _event_count % 30 == 0:
 		print("[TouchpadInput] evt#%d type=%s" % [_event_count, event.as_text().substr(0, 80)])
 
-	# 1. 触摸事件
 	if _handle_touch(event):
 		return
-	# 2. 鼠标事件
 	if _handle_mouse(event):
 		return
-	# 3. 按键事件（Station 2 D-pad → KEY）
 	if _handle_key(event):
 		return
-	# 4. 游戏手柄
 	if _is_station2:
 		_handle_gamepad(event)
 
@@ -91,18 +90,14 @@ func _handle_touch(event: InputEvent) -> bool:
 		if te.pressed:
 			_is_touching = true
 			touchpad_pressed.emit()
-			print("[TouchpadInput] TOUCH DN")
 		else:
 			_is_touching = false
 			touchpad_released.emit()
-			print("[TouchpadInput] TOUCH UP")
 		return true
-
 	if event is InputEventScreenDrag and _is_touching:
 		var de := event as InputEventScreenDrag
 		_emit_moved(de.relative)
 		return true
-
 	return false
 
 
@@ -113,98 +108,69 @@ func _handle_mouse(event: InputEvent) -> bool:
 			if me.pressed:
 				_is_touching = true
 				touchpad_pressed.emit()
-				print("[TouchpadInput] MOUSE DN")
 			else:
 				_is_touching = false
 				touchpad_released.emit()
-				print("[TouchpadInput] MOUSE UP")
 			return true
-
-	# 桌面模式：鼠标移动即可旋转（不要求按下）
 	if event is InputEventMouseMotion and not _is_station2:
 		var me := event as InputEventMouseMotion
 		_emit_moved(me.relative)
 		return true
-
-	# Station 2 鼠标移动只在 _is_touching 时生效
 	if event is InputEventMouseMotion and _is_touching:
 		var me := event as InputEventMouseMotion
 		_emit_moved(me.relative)
 		return true
-
 	return false
 
 
 func _handle_key(event: InputEvent) -> bool:
 	if not event is InputEventKey:
 		return false
-
 	var ke := event as InputEventKey
 	if not ke.pressed or ke.echo:
 		return false
-
 	var dpad: Vector2 = Vector2.ZERO
 	match ke.keycode:
-		KEY_UP, KEY_W:
-			dpad = Vector2(0, 1)
-		KEY_DOWN, KEY_S:
-			dpad = Vector2(0, -1)
-		KEY_LEFT, KEY_A:
-			dpad = Vector2(-1, 0)
-		KEY_RIGHT, KEY_D:
-			dpad = Vector2(1, 0)
+		KEY_UP, KEY_W:   dpad = Vector2(0, 1)
+		KEY_DOWN, KEY_S: dpad = Vector2(0, -1)
+		KEY_LEFT, KEY_A:  dpad = Vector2(-1, 0)
+		KEY_RIGHT, KEY_D: dpad = Vector2(1, 0)
 		KEY_ENTER, KEY_SPACE:
 			_is_touching = true
 			touchpad_pressed.emit()
-			print("[TouchpadInput] KEY OK")
 			return true
-		_:
-			return false
-
+		_: return false
 	if dpad != Vector2.ZERO:
 		_dpad_vec = dpad
 		_is_touching = true
 		touchpad_pressed.emit()
-		print("[TouchpadInput] KEY D-pad %s" % dpad)
 		return true
-
 	return false
 
 
 func _handle_gamepad(event: InputEvent) -> void:
 	if event is InputEventJoypadMotion:
 		var jm := event as InputEventJoypadMotion
-		var old := _dpad_vec
 		match jm.axis:
 			JOY_AXIS_LEFT_X: _dpad_vec.x = jm.axis_value
 			JOY_AXIS_LEFT_Y: _dpad_vec.y = -jm.axis_value
 			JOY_AXIS_RIGHT_X: _dpad_vec.x = jm.axis_value
 			JOY_AXIS_RIGHT_Y: _dpad_vec.y = -jm.axis_value
-
-
 	if event is InputEventJoypadButton:
 		var jb := event as InputEventJoypadButton
 		if jb.button_index == JOY_BUTTON_A or jb.button_index == 0:
 			if jb.pressed:
 				_is_touching = true
 				touchpad_pressed.emit()
-				print("[TouchpadInput] JOYPAD A")
 			else:
 				_is_touching = false
 				touchpad_released.emit()
-				print("[TouchpadInput] JOYPAD A UP")
-
-
-var _joy_log_timer: float = 0.0
 
 
 func _process(delta: float) -> void:
-	# 对 Station 2：轮询 XR 追踪器 + 手柄按钮
 	if _is_station2:
 		_poll_xr_tracker(delta)
 		_poll_joypad(delta)
-
-	# 对所有模式：有 _dpad_vec 且 _is_touching 时持续移动
 	if _is_touching and _dpad_vec != Vector2.ZERO:
 		_dpad_hold_time += delta
 		var speed := DPAD_SPEED
@@ -216,23 +182,25 @@ func _process(delta: float) -> void:
 		_dpad_vec = Vector2.ZERO
 
 
-var _xr_log_timer: float = 0.0
-
-
 func _poll_xr_tracker(delta: float) -> void:
 	_xr_log_timer += delta
 	for name in ["right", "/user/hand/right", "left", "/user/hand/left"]:
 		var tracker: XRPositionalTracker = XRServer.get_tracker(name)
 		if tracker == null:
 			continue
-		var inputs: Array = tracker.get_available_inputs()
-		if inputs.is_empty():
-			continue
-		for input_name in inputs:
-			var val = tracker.get_input(input_name)
-			if val != null and val != 0.0 and val != false:
+		for pn in ["trigger_click", "primary_click", "trackpad_click",
+			"ax_button", "menu_button", "grip_click"]:
+			var val = tracker.get_input(pn)
+			if val:
 				if _xr_log_timer > 2.0:
-					print("[TouchpadInput] XR input '%s/%s' = %s" % [name, input_name, str(val)])
+					print("[TouchpadInput] XR btn %s/%s" % [name, pn])
+				if not _is_touching:
+					_is_touching = true
+					touchpad_pressed.emit()
+				return
+		if _is_touching:
+			_is_touching = false
+			touchpad_released.emit()
 
 
 func _poll_joypad(delta: float) -> void:
@@ -240,51 +208,21 @@ func _poll_joypad(delta: float) -> void:
 	var joypads := Input.get_connected_joypads()
 	if joypads.is_empty():
 		return
-
-	var dev := joypads[0]  # 使用第一个手柄
-	var any_pressed := false
-
-	# 轮询常用按钮
+	var dev := joypads[0]
 	for btn in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y,
 			JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT,
-			0, 1, 2, 3, 4, 5, 6, 7]:
+			0, 1, 2, 3]:
 		if Input.is_joy_button_pressed(dev, btn):
-			any_pressed = true
 			if not _is_touching:
 				_is_touching = true
 				touchpad_pressed.emit()
-				print("[TouchpadInput] JOY btn=%d pressed" % btn)
-			break
-
-	# 方向键区域
-	var joy_x := Input.get_joy_axis(dev, JOY_AXIS_LEFT_X)
-	var joy_y := Input.get_joy_axis(dev, JOY_AXIS_LEFT_Y)
-	if abs(joy_x) > 0.3 or abs(joy_y) > 0.3:
-		any_pressed = true
-		if not _is_touching:
-			_is_touching = true
-			touchpad_pressed.emit()
-		_dpad_vec = Vector2(joy_x, -joy_y)
-	else:
-		_dpad_vec = Vector2.ZERO
-
-	if not any_pressed and _is_touching:
-		_is_touching = false
-		touchpad_released.emit()
-
-	if _joy_log_timer > 2.0:
-		_joy_log_timer = 0.0
-		print("[TouchpadInput] joypad dev=%d btns=%s axis=(%.2f,%.2f)" % [
-			dev, str(any_pressed), joy_x, joy_y
-		])
+			if _joy_log_timer > 2.0:
+				print("[TouchpadInput] JOY btn %d" % btn)
+			return
 
 
 func _emit_moved(raw_delta: Vector2) -> void:
-	var scaled_delta := Vector2(
-		raw_delta.x * X_MOVE_SCALE,
-		raw_delta.y * -Y_MOVE_SCALE
-	)
-	touchpad_moved.emit(scaled_delta)
+	touchpad_moved.emit(Vector2(raw_delta.x * X_MOVE_SCALE, raw_delta.y * -Y_MOVE_SCALE))
 
 
 func activate_module(use_mouse: bool = false) -> void:
@@ -295,9 +233,7 @@ func activate_module(use_mouse: bool = false) -> void:
 	_dpad_hold_time = 0.0
 	_dpad_vec = Vector2.ZERO
 	touchpad_module_activated.emit()
-	print("[TouchpadInput] ACTIVATED mode=%s station2=%s" % [
-		"mouse" if _use_mouse_mode else "touch", _is_station2
-	])
+	print("[TouchpadInput] ACTIVATED mode=%s station2=%s" % ["mouse" if _use_mouse_mode else "touch", _is_station2])
 
 
 func release_module() -> void:

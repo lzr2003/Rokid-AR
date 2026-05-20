@@ -150,6 +150,13 @@ var _diag_joypads: String = ""
 var _diag_xr_trackers: String = ""
 var _diag_events_received: String = ""
 var _diag_last_event: String = "none"
+var _diag_joypads: String = ""
+var _diag_xr_trackers: String = ""
+var _diag_scanned: bool = false
+
+
+func _has_rokid_xr() -> bool:
+	return Engine.has_singleton("RokidXR") and Engine.get_singleton("RokidXR").is_ready()
 var _diag_scanned: bool = false
 
 
@@ -167,13 +174,19 @@ func _scan_diagnostics() -> void:
 		for j in jps:
 			_diag_joypads += "%d:%s " % [j, Input.get_joy_name(j)]
 
-	# XR 追踪器
+	# XR 追踪器 — 尝试已知输入名
 	_diag_xr_trackers = ""
 	for name in ["head", "left", "right", "/user/hand/left", "/user/hand/right"]:
 		var tr := XRServer.get_tracker(name)
 		if tr:
-			var ins: Array = tr.get_available_inputs()
-			_diag_xr_trackers += "%s(%s) " % [name, str(ins) if not ins.is_empty() else "no_inputs"]
+			var found: String = ""
+			for pn in ["trigger", "trigger_click", "grip", "grip_click",
+				"primary", "primary_click", "menu_button",
+				"ax_button", "by_button", "trackpad", "thumbstick"]:
+				var v = tr.get_input(pn)
+				if v != null and v != 0.0 and v != false:
+					found += pn + " "
+			_diag_xr_trackers += "%s[%s]" % [name, found if found != "" else "-"]
 
 
 func _process(_delta: float) -> void:
@@ -183,7 +196,7 @@ func _process(_delta: float) -> void:
 	var text: String = ""
 	text += "Dev:%s XR:%s 3DOF:%s\n" % [
 		OS.get_model_name(),
-		"ON" if RokidXR and RokidXR.is_ready() else "OFF",
+		"ON" if _has_rokid_xr() else "OFF",
 		"YES" if _use_three_dof else "NO"
 	]
 
