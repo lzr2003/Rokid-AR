@@ -33,7 +33,7 @@ func _ready() -> void:
 
 func _detect_device() -> void:
 	var model := OS.get_model_name()
-	_is_station2 = "RG-stationPro" in model or "RG-stationXR2" in model
+	_is_station2 = "RG-station" in model  # RG-stationPro / RG-stationXR2 / RG-station2
 	print("[TouchpadInput] model=%s station2=%s" % [model, _is_station2])
 
 

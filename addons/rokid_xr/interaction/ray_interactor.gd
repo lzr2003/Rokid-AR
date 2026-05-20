@@ -283,7 +283,8 @@ func compute_should_unhover() -> bool:
 
 
 func _clear_selector_queue() -> void:
-	_selector_queue.clear()
+	if _selector_queue.size() > 0:
+		_selector_queue.pop_front()
 
 
 # --- 指针事件 ---
