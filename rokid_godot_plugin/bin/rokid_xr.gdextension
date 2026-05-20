@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol = "rokid_xr_init"
+compatibility_minimum = "4.2"
+initialization_level = "core"
+
+[libraries]
+windows.debug.x86_64 = "libgdextension_rokid.windows.template_debug.x86_64.dll"
+android.release.arm64 = "libgdextension_rokid.android.template_release.arm64.so"
+android.debug.arm64 = "libgdextension_rokid.android.template_debug.arm64.so"
