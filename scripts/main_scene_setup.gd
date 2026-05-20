@@ -37,7 +37,7 @@ func _ready() -> void:
 
 func _detect_platform() -> void:
 	var model := OS.get_model_name()
-	_is_station2 = "RG-stationPro" in model or "RG-stationXR2" in model
+	_is_station2 = "RG-station" in model  # RG-stationPro / RG-stationXR2 / RG-station2
 	_use_three_dof = _is_station2  # Station 2 → ThreeDof；其他 → TouchPad
 
 	if TouchpadInput:
