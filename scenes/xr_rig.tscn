@@ -7,35 +7,33 @@
 [ext_resource type="Script" uid="uid://cthreedofpose01" path="res://addons/rokid_xr/controller/three_dof_ray_pose.gd" id="5"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_cursor"]
-size = Vector3(0.02, 0.02, 0.02)
+size = Vector3(0.06, 0.06, 0.06)
 
 [node name="XRRig" type="XROrigin3D"]
 
 [node name="XRCamera3D" type="XRCamera3D" parent="."]
 
-; --- ThreeDof (Station 2 IMU) ---
-[node name="ThreeDofInteractor" type="Node3D" parent="."]
-
-[node name="ThreeDofRayPose" type="Node3D" parent="ThreeDofInteractor"]
+; --- ThreeDof (Station 2 IMU) --- 挂在相机下，位置自动跟随头部
+[node name="ThreeDofRayPose" type="Node3D" parent="XRCamera3D"]
 script = ExtResource("5")
 
-[node name="RayInteractor3D" type="Node3D" parent="ThreeDofInteractor/ThreeDofRayPose"]
+[node name="RayInteractor3D" type="Node3D" parent="XRCamera3D/ThreeDofRayPose"]
 script = ExtResource("2")
 max_ray_length = 5.0
 drag_threshold = 0.01
 click_time = 0.5
 
-[node name="RayVisual" type="MeshInstance3D" parent="ThreeDofInteractor/ThreeDofRayPose/RayInteractor3D"]
+[node name="RayVisual" type="MeshInstance3D" parent="XRCamera3D/ThreeDofRayPose/RayInteractor3D"]
 script = ExtResource("3")
-ray_width = 0.003
+ray_width = 0.02
 normal_ray_length = 5.0
 bezier_segments = 16
 
-[node name="CursorDot" type="MeshInstance3D" parent="ThreeDofInteractor/ThreeDofRayPose/RayInteractor3D"]
+[node name="CursorDot" type="MeshInstance3D" parent="XRCamera3D/ThreeDofRayPose/RayInteractor3D"]
 mesh = SubResource("BoxMesh_cursor")
-visible = false
+visible = true
 
-[node name="TouchPadSelector3D" type="Node" parent="ThreeDofInteractor"]
+[node name="TouchPadSelector3D" type="Node" parent="XRCamera3D"]
 script = ExtResource("4")
 
 ; --- TouchPad（触控板/桌面鼠标）---

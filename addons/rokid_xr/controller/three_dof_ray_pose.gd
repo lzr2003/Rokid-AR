@@ -1,45 +1,20 @@
 extends Node3D
 ## Station 2 三自由度射线姿态
-## 每帧从 Station2IMU 读取控制器的绝对朝向，应用到射线
-## 参考 Unity SDK ThreeDofRayPose + FollowCamera
+## 挂在 XRCamera3D 下，位置跟随头部 + 手部偏移，旋转来自 Station2IMU
+## 参考 Unity SDK ThreeDofRayPose
 class_name ThreeDofRayPose
 
-var render_camera: Camera3D
+# 手部偏移（相对头部）：右下前方，模拟手持控制器的位置
+@export var hand_offset: Vector3 = Vector3(0.2, -0.3, -0.3)
 
 
 func _ready() -> void:
+	position = hand_offset
 	Station2IMU.orientation_changed.connect(_on_orientation_changed)
 	Station2IMU.imu_recentered.connect(_on_recentered)
-	call_deferred("_find_camera")
-
-
-func _find_camera() -> void:
-	render_camera = _find_xr_camera() if _find_xr_camera() else get_viewport().get_camera_3d()
-	if render_camera == null:
-		for child in get_tree().root.get_children():
-			if child is Camera3D:
-				render_camera = child
-				break
-
-
-func _find_xr_camera() -> Camera3D:
-	for child in get_tree().root.get_children():
-		if child is XROrigin3D:
-			for c in child.get_children():
-				if c is XRCamera3D:
-					return c
-	return null
-
-
-func _process(_delta: float) -> void:
-	# 位置跟随相机（参考 Unity FollowCamera）
-	if render_camera:
-		global_position = render_camera.global_position
 
 
 func _on_orientation_changed(quat: Quaternion) -> void:
-	# Station 2 IMU → 射线朝向
-	# 默认射线方向 = -Z（Godot 前向），IMU 四元数旋转它
 	quaternion = quat
 
 

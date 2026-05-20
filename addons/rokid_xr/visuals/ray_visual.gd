@@ -10,9 +10,9 @@ const InteractionEnums = preload("res://addons/rokid_xr/interaction/interactor_s
 @export var ray_width: float = 0.002
 @export var bezier_segments: int = 16
 @export var bezier_curve_weight: float = 0.3
-@export var default_color: Color = Color(0.2, 0.6, 1.0, 0.8)
-@export var hover_color: Color = Color(0.2, 1.0, 0.4, 0.9)
-@export var select_color: Color = Color(1.0, 0.3, 0.3, 1.0)
+@export var default_color: Color = Color(0.0, 1.0, 0.0, 1.0)
+@export var hover_color: Color = Color(0.0, 1.0, 0.5, 1.0)
+@export var select_color: Color = Color(1.0, 0.8, 0.0, 1.0)
 
 var _mesh: ImmediateMesh
 var _material: StandardMaterial3D

@@ -63,20 +63,14 @@ func _find_references() -> void:
 
 	_xr_camera = xr_rig.find_child("XRCamera3D", true, false)
 
-	# ThreeDof 节点
-	_three_dof_ray_pose = xr_rig.find_child("ThreeDofRayPose", true, false)
+	# ThreeDof — 挂在 XRCamera3D 下
+	if _xr_camera:
+		_three_dof_ray_pose = _xr_camera.find_child("ThreeDofRayPose", true, false)
+		_ray_interactor_3d = _xr_camera.find_child("RayInteractor3D", true, false)
 
-	# TouchPad 节点
+	# TouchPad — 挂在 TouchPadInteractor 下
 	_touchpad_ray_pose = xr_rig.find_child("TouchPadRayPose", true, false)
-
-	# RayInteractor — 需要通过节点名精确匹配
-	var three_dof_interactor := xr_rig.find_child("ThreeDofInteractor", true, false)
-	if three_dof_interactor:
-		_ray_interactor_3d = _find_ray_interactor_in(three_dof_interactor)
-
-	var tp_interactor := xr_rig.find_child("TouchPadInteractor", true, false)
-	if tp_interactor:
-		_ray_interactor_tp = _find_ray_interactor_in(tp_interactor)
+	_ray_interactor_tp = xr_rig.find_child("RayInteractorTP", true, false)
 
 
 func _find_ray_interactor_in(node: Node) -> RayInteractor:
@@ -98,18 +92,12 @@ func _activate_input_mode() -> void:
 		print("[MainScene] TouchpadInput activated mouse_mode=%s" % use_mouse)
 
 	if _use_three_dof:
-		# Station 2: ThreeDofInteractor 激活，TouchPadInteractor 隐藏
 		_active_ray_interactor = _ray_interactor_3d
-		var td := _find_node("ThreeDofInteractor")
-		if td: td.visible = true
 		var tp := _find_node("TouchPadInteractor")
 		if tp: tp.visible = false
 		print("[MainScene] Mode: ThreeDof (Station 2 IMU)")
 	else:
-		# 桌面 / 普通触摸板
 		_active_ray_interactor = _ray_interactor_tp
-		var td := _find_node("ThreeDofInteractor")
-		if td: td.visible = false
 		var tp := _find_node("TouchPadInteractor")
 		if tp: tp.visible = true
 		print("[MainScene] Mode: TouchPad")

@@ -33,8 +33,14 @@ func _ready() -> void:
 
 func _detect_device() -> void:
 	var model := OS.get_model_name()
-	_is_station2 = "RG-station" in model  # RG-stationPro / RG-stationXR2 / RG-station2
+	_is_station2 = "RG-station" in model
 	print("[TouchpadInput] model=%s station2=%s" % [model, _is_station2])
+
+	# 检测所有已连接的游戏手柄
+	var joypads := Input.get_connected_joypads()
+	print("[TouchpadInput] connected joypads: %s" % str(joypads))
+	for jp in joypads:
+		print("[TouchpadInput] joypad[%d] name=%s" % [jp, Input.get_joy_name(jp)])
 
 
 func _input(event: InputEvent) -> void:
@@ -171,7 +177,14 @@ func _handle_gamepad(event: InputEvent) -> void:
 				print("[TouchpadInput] JOYPAD A UP")
 
 
+var _joy_log_timer: float = 0.0
+
+
 func _process(delta: float) -> void:
+	# 对 Station 2：轮询手柄按钮（可能不通过 _input 事件）
+	if _is_station2:
+		_poll_joypad(delta)
+
 	# 对所有模式：有 _dpad_vec 且 _is_touching 时持续移动
 	if _is_touching and _dpad_vec != Vector2.ZERO:
 		_dpad_hold_time += delta
@@ -182,6 +195,50 @@ func _process(delta: float) -> void:
 	elif not _is_touching:
 		_dpad_hold_time = 0.0
 		_dpad_vec = Vector2.ZERO
+
+
+func _poll_joypad(delta: float) -> void:
+	_joy_log_timer += delta
+	var joypads := Input.get_connected_joypads()
+	if joypads.is_empty():
+		return
+
+	var dev := joypads[0]  # 使用第一个手柄
+	var any_pressed := false
+
+	# 轮询常用按钮
+	for btn in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y,
+			JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT,
+			0, 1, 2, 3, 4, 5, 6, 7]:
+		if Input.is_joy_button_pressed(dev, btn):
+			any_pressed = true
+			if not _is_touching:
+				_is_touching = true
+				touchpad_pressed.emit()
+				print("[TouchpadInput] JOY btn=%d pressed" % btn)
+			break
+
+	# 方向键区域
+	var joy_x := Input.get_joy_axis(dev, JOY_AXIS_LEFT_X)
+	var joy_y := Input.get_joy_axis(dev, JOY_AXIS_LEFT_Y)
+	if abs(joy_x) > 0.3 or abs(joy_y) > 0.3:
+		any_pressed = true
+		if not _is_touching:
+			_is_touching = true
+			touchpad_pressed.emit()
+		_dpad_vec = Vector2(joy_x, -joy_y)
+	else:
+		_dpad_vec = Vector2.ZERO
+
+	if not any_pressed and _is_touching:
+		_is_touching = false
+		touchpad_released.emit()
+
+	if _joy_log_timer > 2.0:
+		_joy_log_timer = 0.0
+		print("[TouchpadInput] joypad dev=%d btns=%s axis=(%.2f,%.2f)" % [
+			dev, str(any_pressed), joy_x, joy_y
+		])
 
 
 func _emit_moved(raw_delta: Vector2) -> void:
