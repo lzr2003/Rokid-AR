@@ -25,6 +25,12 @@ func _ready() -> void:
 	call_deferred("_find_camera")
 
 
+func _process(_delta: float) -> void:
+	# XR 每帧同步位置到相机（头部追踪持续更新）
+	if render_camera:
+		global_position = render_camera.global_position
+
+
 func _find_camera() -> void:
 	render_camera = _find_xr_camera() if _find_xr_camera() else get_viewport().get_camera_3d()
 	if render_camera == null:

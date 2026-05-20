@@ -189,8 +189,8 @@ func do_select() -> void:
 		selected = hovered
 		selected.add_select_interactor(self)
 		_publish_pointer_event(InteractionEnums.PointerEventType.SELECT)
-		_ori_hit_point = collision_info.point if collision_info.hit else ray_end
-		_ori_hit_distance = collision_info.distance if collision_info.hit else no_hover_cursor_distance
+		_ori_hit_point = collision_info["point"] if collision_info["hit"] else ray_end
+		_ori_hit_distance = collision_info["distance"] if collision_info["hit"] else no_hover_cursor_distance
 
 	state = InteractionEnums.InteractorState.SELECT
 	_is_dragging = false
@@ -234,7 +234,7 @@ func do_select_update() -> void:
 		else:
 			_compute_no_hover_endpoint()
 
-		var current_hit_point: Vector3 = collision_info.point if collision_info.hit else ray_end
+		var current_hit_point: Vector3 = collision_info["point"] if collision_info["hit"] else ray_end
 		var drag_delta: Vector3 = current_hit_point - _ori_hit_point
 		if drag_delta.length_squared() > drag_threshold * drag_threshold:
 			if not _is_dragging:
@@ -292,7 +292,7 @@ func _publish_pointer_event(event_type: int) -> void:
 	var evt: PointerEvent = PointerEvent.new(
 		identifier,
 		event_type,
-		ray_end if collision_info.hit else ray_origin + ray_forward * no_hover_cursor_distance,
+		ray_end if collision_info["hit"] else ray_origin + ray_forward * no_hover_cursor_distance,
 		global_transform.basis.get_rotation_quaternion(),
 		null
 	)
