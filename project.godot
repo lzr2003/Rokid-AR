@@ -24,6 +24,7 @@ xr_features_mode=2
 
 [autoload]
 
+Station2IMU="*res://addons/rokid_xr/controller/station2_imu.gd"
 TouchpadInput="*res://addons/rokid_xr/touchpad/touchpad_input.gd"
 InteractableRegistry="*res://addons/rokid_xr/interaction/interactable_registry.gd"
 
