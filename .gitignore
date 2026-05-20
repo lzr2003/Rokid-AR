@@ -1,0 +1,33 @@
+# Godot
+.godot/
+*.import
+*.translation
+export/
+export_presets.cfg
+
+# Godot 4+ .uid files — keep these (they're cache, regenerated on import)
+# Uncomment if you prefer to exclude them:
+# *.uid
+
+# Build outputs
+android/build/
+.xr_code/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+.idea/
+
+# Claude Code
+.claude/
+
+# Logs
+*.log

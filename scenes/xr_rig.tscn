@@ -1,0 +1,38 @@
+[gd_scene load_steps=9 format=3 uid="uid://bxrrig0000001"]
+
+[ext_resource type="Script" uid="uid://ctpadraypose01" path="res://addons/rokid_xr/touchpad/touchpad_ray_pose.gd" id="1"]
+[ext_resource type="Script" uid="uid://crayinteract01" path="res://addons/rokid_xr/interaction/ray_interactor.gd" id="2"]
+[ext_resource type="Script" uid="uid://crayvisual0001" path="res://addons/rokid_xr/visuals/ray_visual.gd" id="3"]
+[ext_resource type="Script" uid="uid://ctpadselector01" path="res://addons/rokid_xr/interaction/touchpad_selector.gd" id="4"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_cursor"]
+size = Vector3(0.02, 0.02, 0.02)
+
+[node name="XRRig" type="XROrigin3D"]
+
+[node name="XRCamera3D" type="XRCamera3D" parent="."]
+
+[node name="TouchPadInteractor" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="TouchPadRayPose" type="Node3D" parent="TouchPadInteractor"]
+script = ExtResource("1")
+
+[node name="RayInteractor" type="Node3D" parent="TouchPadInteractor/TouchPadRayPose"]
+script = ExtResource("2")
+max_ray_length = 5.0
+drag_threshold = 0.01
+click_time = 0.5
+
+[node name="RayVisual" type="MeshInstance3D" parent="TouchPadInteractor/TouchPadRayPose/RayInteractor"]
+script = ExtResource("3")
+ray_width = 0.003
+normal_ray_length = 5.0
+bezier_segments = 16
+
+[node name="CursorDot" type="MeshInstance3D" parent="TouchPadInteractor/TouchPadRayPose/RayInteractor"]
+mesh = SubResource("BoxMesh_cursor")
+visible = false
+
+[node name="TouchPadSelector" type="Node" parent="TouchPadInteractor"]
+script = ExtResource("4")
