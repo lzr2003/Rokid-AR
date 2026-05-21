@@ -1,9 +1,13 @@
 package com.rokid.godot;
 
-import com.rokid.unitycallbridge.UnityCallBridge;
+import android.app.Activity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.util.Log;
 
 /**
- * Rokid 触控板桥接 — 调用 UnityCallBridge 注册 VirtualController 监听
+ * Rokid 触控板桥接 — 直接在 Activity 层拦截触控事件
  */
 public class RokidTouchBridge {
 
@@ -14,79 +18,87 @@ public class RokidTouchBridge {
     private static volatile boolean sClickPending = false;
     private static final Object sLock = new Object();
 
+    private static float sLastX = 0.0f;
+    private static float sLastY = 0.0f;
+
     public static void init() {
         if (sInitialized) return;
         sInitialized = true;
 
         try {
-            // 1. 注册 VirtualController (Mouse 模式)
-            String json = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
-                "{\"name\":\"type\",\"value\":\"5\"}]}";
-            UnityCallBridge.onUnityCall(json);
-
-            // 2. 注册触控监听
-            String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\"," +
-                "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\"}}";
-            UnityCallBridge.onUnityCall(touchJson);
-
-            // 3. 注册滚轮监听
-            String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\"," +
-                "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\"}}";
-            UnityCallBridge.onUnityCall(scrollJson);
-
-            android.util.Log.i("RokidTouchBridge", "VirtualController registered");
+            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
+            final Activity activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
+            if (activity == null) {
+                Log.e("RokidTouchBridge", "Godot activity is null");
+                return;
+            }
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    setupTouchInterceptor(activity);
+                }
+            });
         } catch (Exception e) {
-            android.util.Log.e("RokidTouchBridge", "Failed to init", e);
+            Log.e("RokidTouchBridge", "Failed to init", e);
         }
     }
 
-    // ------ TouchReceiver 回调方法 ------
-
-    public static void onTouchEvent(String json) {
+    private static void setupTouchInterceptor(Activity activity) {
         try {
-            org.json.JSONObject obj = new org.json.JSONObject(json);
-            String type = obj.optString("type", "");
-            float x = (float) obj.optDouble("x", 0);
-            float y = (float) obj.optDouble("y", 0);
+            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TOUCHABLE);
 
-            synchronized (sLock) {
-                if ("down".equals(type) || "touch".equals(type)) {
+            View decorView = activity.getWindow().getDecorView();
+            decorView.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    handleMotionEvent(event);
+                    return true;
+                }
+            });
+
+            Log.i("RokidTouchBridge", "Touch interceptor registered on decor view");
+        } catch (Exception e) {
+            Log.e("RokidTouchBridge", "Failed to setup touch interceptor", e);
+        }
+    }
+
+    private static void handleMotionEvent(MotionEvent event) {
+        float x = event.getX();
+        float y = event.getY();
+
+        synchronized (sLock) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
                     sTouchState = 1;
                     sClickPending = true;
                     sDeltaX = 0;
                     sDeltaY = 0;
-                } else if ("move".equals(type) || "drag".equals(type)) {
-                    sTouchState = 2;
-                    sDeltaX = x;
-                    sDeltaY = y;
-                } else if ("up".equals(type)) {
-                    sTouchState = 0;
-                }
-            }
-        } catch (Exception e) {
-            android.util.Log.e("RokidTouchBridge", "Parse error", e);
-        }
-    }
+                    sLastX = x;
+                    sLastY = y;
+                    break;
 
-    public static void onScrollEvent(String json) {
-        try {
-            org.json.JSONObject obj = new org.json.JSONObject(json);
-            float dx = (float) obj.optDouble("dx", 0);
-            float dy = (float) obj.optDouble("dy", 0);
-            synchronized (sLock) {
-                sDeltaX = dx;
-                sDeltaY = dy;
-                sTouchState = 3; // scroll
+                case MotionEvent.ACTION_MOVE:
+                    sTouchState = 2;
+                    sDeltaX = x - sLastX;
+                    sDeltaY = y - sLastY;
+                    sLastX = x;
+                    sLastY = y;
+                    break;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    sTouchState = 0;
+                    sDeltaX = 0;
+                    sDeltaY = 0;
+                    break;
             }
-        } catch (Exception e) {
-            android.util.Log.e("RokidTouchBridge", "Scroll parse error", e);
         }
     }
 
     // ------ GDExtension JNI 轮询接口 ------
 
-    public static float getDeltaX() { synchronized (sLock) { return sDeltaX; } }
-    public static float getDeltaY() { synchronized (sLock) { return sDeltaY; } }
+    public static float getDeltaX() { synchronized (sLock) { float v = sDeltaX; sDeltaX = 0; return v; } }
+    public static float getDeltaY() { synchronized (sLock) { float v = sDeltaY; sDeltaY = 0; return v; } }
     public static int getTouchState() { return sTouchState; }
     public static boolean consumeClick() {
         boolean v = sClickPending;
