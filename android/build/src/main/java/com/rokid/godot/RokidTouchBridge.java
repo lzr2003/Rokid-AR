@@ -39,7 +39,16 @@ public class RokidTouchBridge {
 
         try {
             Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
-            final Activity activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
+            // 尝试获取 Godot 单例实例，再调用 getActivity()
+            Activity activity = null;
+            try {
+                // 先试静态方法
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
+            } catch (NullPointerException e) {
+                // 不是静态方法，先拿单例
+                Object godot = godotClass.getMethod("getInstance").invoke(null);
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(godot);
+            }
             if (activity == null) {
                 Log.e("RokidTouchBridge", "Godot activity is null");
                 return;
