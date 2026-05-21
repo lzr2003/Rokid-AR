@@ -56,10 +56,31 @@ public class RokidTouchBridge {
         if (sInitialized) return;
         sInitialized = true;
 
-        final Activity activity = getGodotActivity();
-        if (activity == null) {
-            Log.e("RokidTouchBridge", "Godot activity is null");
-            return;
+        try {
+            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
+            // 尝试获取 Godot 单例实例，再调用 getActivity()
+            Activity activity = null;
+            try {
+                // 先试静态方法
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
+            } catch (NullPointerException e) {
+                // 不是静态方法，先拿单例
+                Object godot = godotClass.getMethod("getInstance").invoke(null);
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(godot);
+            }
+            if (activity == null) {
+                Log.e("RokidTouchBridge", "Godot activity is null");
+                return;
+            }
+            sTouchFile = new File(act.getFilesDir(), "touch_state.txt");
+            act.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    setupOverlay(act);
+                }
+            });
+        } catch (Exception e) {
+            Log.e("RokidTouchBridge", "Failed to init", e);
         }
         sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
         activity.runOnUiThread(new Runnable() {
