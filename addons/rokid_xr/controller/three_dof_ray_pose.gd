@@ -11,12 +11,7 @@ class_name ThreeDofRayPose
 func _ready() -> void:
 	position = hand_offset
 	Station2IMU.orientation_changed.connect(_on_orientation_changed)
-	Station2IMU.imu_recentered.connect(_on_recentered)
 
 
 func _on_orientation_changed(quat: Quaternion) -> void:
 	quaternion = quat
-
-
-func _on_recentered() -> void:
-	quaternion = Quaternion.IDENTITY
