@@ -1,8 +1,10 @@
 package com.rokid.godot;
 
 import android.app.Activity;
+import android.app.Application;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.Settings;
 import android.graphics.PixelFormat;
 import android.view.Gravity;
@@ -17,6 +19,7 @@ import java.io.FileWriter;
 public class RokidTouchBridge {
 
     private static volatile boolean sInitDone = false;
+    private static volatile boolean sOverlayReady = false;
 
     private static volatile float sDeltaX = 0.0f;
     private static volatile float sDeltaY = 0.0f;
@@ -29,36 +32,32 @@ public class RokidTouchBridge {
 
     private static File sTouchFile = null;
 
-    private static Activity getGodotActivity() {
-        try {
-            Class<?> c = Class.forName("org.godotengine.godot.Godot");
-            try {
-                return (Activity) c.getMethod("getActivity").invoke(null);
-            } catch (NullPointerException e) {
-                Object inst = c.getMethod("getInstance").invoke(null);
-                return (Activity) c.getMethod("getActivity").invoke(inst);
-            }
-        } catch (Exception e) {
-            Log.e("RokidTouchBridge", "getGodotActivity failed", e);
-            return null;
-        }
-    }
-
-    public static void init() {
+    public static void init(Application app) {
         if (sInitDone) return;
         sInitDone = true;
 
-        final Activity activity = getGodotActivity();
-        if (activity == null) {
-            Log.e("RokidTouchBridge", "Godot activity is null");
-            return;
-        }
-        sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
-        activity.runOnUiThread(new Runnable() {
+        app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override
-            public void run() {
-                setupOverlay(activity);
+            public void onActivityCreated(Activity a, Bundle b) {
+                String name = a.getClass().getName();
+                if (name.contains("Godot")) {
+                    final Activity activity = a;
+                    sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
+                    app.unregisterActivityLifecycleCallbacks(this);
+                    activity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            setupOverlay(activity);
+                        }
+                    });
+                }
             }
+            @Override public void onActivityStarted(Activity a) {}
+            @Override public void onActivityResumed(Activity a) {}
+            @Override public void onActivityPaused(Activity a) {}
+            @Override public void onActivityStopped(Activity a) {}
+            @Override public void onActivitySaveInstanceState(Activity a, Bundle b) {}
+            @Override public void onActivityDestroyed(Activity a) {}
         });
     }
 
@@ -93,6 +92,7 @@ public class RokidTouchBridge {
                 }
             });
             wm.addView(v, p);
+            sOverlayReady = true;
             Log.i("RokidTouchBridge", "System overlay registered");
         } catch (SecurityException e) {
             Log.e("RokidTouchBridge", "permission denied", e);
@@ -109,23 +109,19 @@ public class RokidTouchBridge {
                 case MotionEvent.ACTION_DOWN:
                     sTouchState = 1;
                     sClickPending = true;
-                    sDeltaX = 0;
-                    sDeltaY = 0;
-                    sLastX = x;
-                    sLastY = y;
+                    sDeltaX = 0; sDeltaY = 0;
+                    sLastX = x; sLastY = y;
                     break;
                 case MotionEvent.ACTION_MOVE:
                     sTouchState = 2;
                     sDeltaX = x - sLastX;
                     sDeltaY = y - sLastY;
-                    sLastX = x;
-                    sLastY = y;
+                    sLastX = x; sLastY = y;
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     sTouchState = 0;
-                    sDeltaX = 0;
-                    sDeltaY = 0;
+                    sDeltaX = 0; sDeltaY = 0;
                     break;
             }
         }
@@ -148,8 +144,6 @@ public class RokidTouchBridge {
             FileWriter fw = new FileWriter(sTouchFile, false);
             fw.write(line);
             fw.close();
-        } catch (Exception ex) {
-            // ignore
-        }
+        } catch (Exception ex) {}
     }
 }
