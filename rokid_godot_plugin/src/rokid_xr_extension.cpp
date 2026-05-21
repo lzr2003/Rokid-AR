@@ -11,6 +11,7 @@ namespace godot {
 #define ROKID_LOG(...) UtilityFunctions::print("[RokidC++] [", __LINE__, "] ", __VA_ARGS__)
 #define ROKID_ERR(...) UtilityFunctions::printerr("[RokidC++] [ERROR] [", __LINE__, "] ", __VA_ARGS__)
 
+#ifdef ANDROID_ENABLED
 // ------ JNI 辅助（缓存 Java 类和方法 ID） ------
 static JavaVM* g_jvm = nullptr;
 static jclass g_touch_class = nullptr;
@@ -24,7 +25,6 @@ static jmethodID g_init_bridge = nullptr;
 
 static void _ensure_jni() {
     if (g_jni_ready) return;
-#ifdef ANDROID_ENABLED
     JNI_GetCreatedJavaVMs(&g_jvm, 1, nullptr);
     if (!g_jvm) return;
     JNIEnv* env;
@@ -46,7 +46,6 @@ static void _ensure_jni() {
         g_jni_ready = true;
         ROKID_LOG("RokidTouchBridge JNI ready");
     }
-#endif
 }
 
 static void _poll_touch_data(float& out_dx, float& out_dy, int& out_state, bool& out_click) {
@@ -54,7 +53,6 @@ static void _poll_touch_data(float& out_dx, float& out_dy, int& out_state, bool&
         _ensure_jni();
         if (!g_jni_ready) return;
     }
-#ifdef ANDROID_ENABLED
     JNIEnv* env;
     if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
         g_jvm->AttachCurrentThread(&env, nullptr);
@@ -63,8 +61,8 @@ static void _poll_touch_data(float& out_dx, float& out_dy, int& out_state, bool&
     out_dy = env->CallStaticFloatMethod(g_touch_class, g_get_delta_y);
     out_state = env->CallStaticIntMethod(g_touch_class, g_get_touch_state);
     out_click = env->CallStaticBooleanMethod(g_touch_class, g_consume_click);
-#endif
 }
+#endif // ANDROID_ENABLED
 
 // ============================================================
 // Lifecycle
@@ -213,6 +211,7 @@ void RokidXRExtension::_on_instance_destroyed() {
 // ============================================================
 
 void RokidXRExtension::_on_process() {
+#ifdef ANDROID_ENABLED
     float dx = 0, dy = 0;
     int state = 0;
     bool click = false;
@@ -221,6 +220,7 @@ void RokidXRExtension::_on_process() {
     _touch_delta_y.store(dy);
     _touch_state.store(state);
     if (click) _touch_click_pending.store(true);
+#endif
 }
 
 // ============================================================
@@ -330,15 +330,14 @@ String RokidXRExtension::get_glass_firmware_version() {
 // ============================================================
 
 void RokidXRExtension::_init_touch_listener() {
+#ifdef ANDROID_ENABLED
     ROKID_LOG("_init_touch_listener");
     _ensure_jni();
     if (!g_jni_ready) return;
-#ifdef ANDROID_ENABLED
     JNIEnv* env;
     if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
         g_jvm->AttachCurrentThread(&env, nullptr);
     }
-    // 调用 RokidTouchBridge.init() 注册 VirtualController 监听
     env->CallStaticVoidMethod(g_touch_class, g_init_bridge);
     ROKID_LOG("RokidTouchBridge.init() called");
 #endif

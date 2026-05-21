@@ -10,7 +10,6 @@ export_presets.cfg
 # *.uid
 
 # Build outputs
-android/build/
 .xr_code/
 
 # OS
