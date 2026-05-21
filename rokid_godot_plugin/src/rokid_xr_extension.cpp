@@ -4,6 +4,7 @@
 
 #ifdef ANDROID_ENABLED
 #include <jni.h>
+#include <dlfcn.h>
 #endif
 
 namespace godot {
@@ -25,7 +26,11 @@ static jmethodID g_init_bridge = nullptr;
 
 static void _ensure_jni() {
     if (g_jni_ready) return;
-    JNI_GetCreatedJavaVMs(&g_jvm, 1, nullptr);
+    // dlsym 避免 .so 直接链接 JNI_GetCreatedJavaVMs（ART 已加载，运行时查找）
+    typedef jint (*PFN_GetCreatedJavaVMs)(JavaVM**, jsize, jsize*);
+    auto pfn_get_vms = (PFN_GetCreatedJavaVMs)dlsym(RTLD_DEFAULT, "JNI_GetCreatedJavaVMs");
+    if (!pfn_get_vms) return;
+    pfn_get_vms(&g_jvm, 1, nullptr);
     if (!g_jvm) return;
     JNIEnv* env;
     if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
