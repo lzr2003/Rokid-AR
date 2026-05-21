@@ -189,12 +189,12 @@ func _process(_delta: float) -> void:
 	_log_counter += 1
 	_scan_diagnostics()
 
-	var text: String = "LastEvt:%s Move:%d Press:%d\n" % [_diag_last_event, _tpad_move_count, _tpad_press_count]
-	text += "Touch:%s d(%.0f,%.0f)\n" % [_tpad_touching, _tpad_latest_delta.x, _tpad_latest_delta.y]
+	text += "Evt:%-10s Mv:%-2d Pr:%-2d\n" % [_diag_last_event, _tpad_move_count, _tpad_press_count]
+	text += "Touch:%-5s d(%+4.0f,%+4.0f)\n" % [str(_tpad_touching), _tpad_latest_delta.x, _tpad_latest_delta.y]
 
 	if _three_dof_ray_pose:
 		var fwd: Vector3 = -_three_dof_ray_pose.global_transform.basis.z
-		text += "IMU[%.2f,%.2f,%.2f]\n" % [fwd.x, fwd.y, fwd.z]
+		text += "Fwd:(%.2f,%.2f,%.2f)\n" % [fwd.x, fwd.y, fwd.z]
 
 	if _active_ray_interactor:
 		var ri := _active_ray_interactor

@@ -1,0 +1,8 @@
+[configuration]
+name="RokidTouchBridge"
+binary_type="local_source"
+
+[dependencies]
+local=["res://rokid_godot_plugin/java/src/main/java/com/rokid/godot/RokidTouchBridge.java", "res://rokid_godot_plugin/java/src/main/java/com/rokid/godot/TouchReceiver.java"]
+remote=[]
+custom_maven_repos=[]

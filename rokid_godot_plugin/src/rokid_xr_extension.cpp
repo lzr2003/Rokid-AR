@@ -20,6 +20,8 @@ static jmethodID g_get_touch_state = nullptr;
 static jmethodID g_consume_click = nullptr;
 static bool g_jni_ready = false;
 
+static jmethodID g_init_bridge = nullptr;
+
 static void _ensure_jni() {
     if (g_jni_ready) return;
 #ifdef ANDROID_ENABLED
@@ -29,19 +31,20 @@ static void _ensure_jni() {
     if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
         g_jvm->AttachCurrentThread(&env, nullptr);
     }
-    jclass cls = env->FindClass("com/rokid/godot/TouchInterceptor");
+    jclass cls = env->FindClass("com/rokid/godot/RokidTouchBridge");
     if (!cls) {
-        ROKID_LOG("TouchInterceptor class not found (will retry)");
+        ROKID_LOG("RokidTouchBridge class not found (will retry)");
         return;
     }
     g_touch_class = (jclass)env->NewGlobalRef(cls);
+    g_init_bridge = env->GetStaticMethodID(g_touch_class, "init", "()V");
     g_get_delta_x = env->GetStaticMethodID(g_touch_class, "getDeltaX", "()F");
     g_get_delta_y = env->GetStaticMethodID(g_touch_class, "getDeltaY", "()F");
     g_get_touch_state = env->GetStaticMethodID(g_touch_class, "getTouchState", "()I");
     g_consume_click = env->GetStaticMethodID(g_touch_class, "consumeClick", "()Z");
-    if (g_get_delta_x && g_get_delta_y && g_get_touch_state && g_consume_click) {
+    if (g_init_bridge && g_get_delta_x && g_get_delta_y && g_get_touch_state && g_consume_click) {
         g_jni_ready = true;
-        ROKID_LOG("TouchInterceptor JNI ready");
+        ROKID_LOG("RokidTouchBridge JNI ready");
     }
 #endif
 }
@@ -329,6 +332,16 @@ String RokidXRExtension::get_glass_firmware_version() {
 void RokidXRExtension::_init_touch_listener() {
     ROKID_LOG("_init_touch_listener");
     _ensure_jni();
+    if (!g_jni_ready) return;
+#ifdef ANDROID_ENABLED
+    JNIEnv* env;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        g_jvm->AttachCurrentThread(&env, nullptr);
+    }
+    // 调用 RokidTouchBridge.init() 注册 VirtualController 监听
+    env->CallStaticVoidMethod(g_touch_class, g_init_bridge);
+    ROKID_LOG("RokidTouchBridge.init() called");
+#endif
 }
 
 Vector2 RokidXRExtension::get_touch_delta() {
