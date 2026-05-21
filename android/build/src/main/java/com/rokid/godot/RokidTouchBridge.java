@@ -33,36 +33,44 @@ public class RokidTouchBridge {
 
     private static File sTouchFile = null;
 
+    // ---- Activity 获取 ----
+
+    private static Activity getGodotActivity() {
+        try {
+            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
+            try {
+                return (Activity) godotClass.getMethod("getActivity").invoke(null);
+            } catch (NullPointerException e) {
+                Object godot = godotClass.getMethod("getInstance").invoke(null);
+                return (Activity) godotClass.getMethod("getActivity").invoke(godot);
+            }
+        } catch (Exception e) {
+            Log.e("RokidTouchBridge", "Failed to get Godot activity", e);
+            return null;
+        }
+    }
+
+    // ---- 初始化 ----
+
     public static void init() {
         if (sInitialized) return;
         sInitialized = true;
 
-        try {
-            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
-            // 尝试获取 Godot 单例实例，再调用 getActivity()
-            Activity activity = null;
-            try {
-                activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
-            } catch (NullPointerException e) {
-                Object godot = godotClass.getMethod("getInstance").invoke(null);
-                activity = (Activity) godotClass.getMethod("getActivity").invoke(godot);
-            }
-            final Activity act = activity;
-            if (act == null) {
-                Log.e("RokidTouchBridge", "Godot activity is null");
-                return;
-            }
-            sTouchFile = new File(act.getFilesDir(), "touch_state.txt");
-            act.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    setupOverlay(act);
-                }
-            });
-        } catch (Exception e) {
-            Log.e("RokidTouchBridge", "Failed to init", e);
+        final Activity activity = getGodotActivity();
+        if (activity == null) {
+            Log.e("RokidTouchBridge", "Godot activity is null");
+            return;
         }
+        sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                setupOverlay(activity);
+            }
+        });
     }
+
+    // ---- Overlay ----
 
     private static void setupOverlay(final Activity activity) {
         try {
@@ -105,6 +113,8 @@ public class RokidTouchBridge {
         }
     }
 
+    // ---- 触控处理 ----
+
     private static void handleMotionEvent(MotionEvent event) {
         float x = event.getX();
         float y = event.getY();
@@ -119,7 +129,6 @@ public class RokidTouchBridge {
                     sLastX = x;
                     sLastY = y;
                     break;
-
                 case MotionEvent.ACTION_MOVE:
                     sTouchState = 2;
                     sDeltaX = x - sLastX;
@@ -127,7 +136,6 @@ public class RokidTouchBridge {
                     sLastX = x;
                     sLastY = y;
                     break;
-
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     sTouchState = 0;
@@ -139,20 +147,21 @@ public class RokidTouchBridge {
         writeState();
     }
 
+    // ---- 文件写入 ----
+
     private static void writeState() {
         if (sTouchFile == null) return;
         try {
-            String line;
-            boolean click;
             float dx, dy;
             int state;
+            boolean click;
             synchronized (sLock) {
                 dx = sDeltaX; sDeltaX = 0;
                 dy = sDeltaY; sDeltaY = 0;
                 state = sTouchState;
                 click = sClickPending; sClickPending = false;
             }
-            line = String.format("%.3f %.3f %d %d", dx, dy, state, click ? 1 : 0);
+            String line = String.format("%.3f %.3f %d %d", dx, dy, state, click ? 1 : 0);
             FileWriter fw = new FileWriter(sTouchFile, false);
             fw.write(line);
             fw.close();
