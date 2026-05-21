@@ -14,13 +14,9 @@ import android.util.Log;
 import java.io.File;
 import java.io.FileWriter;
 
-/**
- * Rokid 触控板桥接 — 系统 overlay 拦截 + 文件写入供 Godot 读取
- */
 public class RokidTouchBridge {
 
-    private static volatile boolean sInitialized = false;
-    private static volatile boolean sOverlayReady = false;
+    private static volatile boolean sInitDone = false;
 
     private static volatile float sDeltaX = 0.0f;
     private static volatile float sDeltaY = 0.0f;
@@ -33,54 +29,29 @@ public class RokidTouchBridge {
 
     private static File sTouchFile = null;
 
-    // ---- Activity 获取 ----
-
     private static Activity getGodotActivity() {
         try {
-            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
+            Class<?> c = Class.forName("org.godotengine.godot.Godot");
             try {
-                return (Activity) godotClass.getMethod("getActivity").invoke(null);
+                return (Activity) c.getMethod("getActivity").invoke(null);
             } catch (NullPointerException e) {
-                Object godot = godotClass.getMethod("getInstance").invoke(null);
-                return (Activity) godotClass.getMethod("getActivity").invoke(godot);
+                Object inst = c.getMethod("getInstance").invoke(null);
+                return (Activity) c.getMethod("getActivity").invoke(inst);
             }
         } catch (Exception e) {
-            Log.e("RokidTouchBridge", "Failed to get Godot activity", e);
+            Log.e("RokidTouchBridge", "getGodotActivity failed", e);
             return null;
         }
     }
 
-    // ---- 初始化 ----
-
     public static void init() {
-        if (sInitialized) return;
-        sInitialized = true;
+        if (sInitDone) return;
+        sInitDone = true;
 
-        try {
-            Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
-            // 尝试获取 Godot 单例实例，再调用 getActivity()
-            Activity activity = null;
-            try {
-                // 先试静态方法
-                activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
-            } catch (NullPointerException e) {
-                // 不是静态方法，先拿单例
-                Object godot = godotClass.getMethod("getInstance").invoke(null);
-                activity = (Activity) godotClass.getMethod("getActivity").invoke(godot);
-            }
-            if (activity == null) {
-                Log.e("RokidTouchBridge", "Godot activity is null");
-                return;
-            }
-            sTouchFile = new File(act.getFilesDir(), "touch_state.txt");
-            act.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    setupOverlay(act);
-                }
-            });
-        } catch (Exception e) {
-            Log.e("RokidTouchBridge", "Failed to init", e);
+        final Activity activity = getGodotActivity();
+        if (activity == null) {
+            Log.e("RokidTouchBridge", "Godot activity is null");
+            return;
         }
         sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
         activity.runOnUiThread(new Runnable() {
@@ -91,21 +62,19 @@ public class RokidTouchBridge {
         });
     }
 
-    // ---- Overlay ----
-
-    private static void setupOverlay(final Activity activity) {
+    private static void setupOverlay(final Activity a) {
         try {
-            if (!Settings.canDrawOverlays(activity)) {
+            if (!Settings.canDrawOverlays(a)) {
                 Log.w("RokidTouchBridge", "SYSTEM_ALERT_WINDOW not granted, requesting...");
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + activity.getPackageName()));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(intent);
+                Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + a.getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                a.startActivity(i);
                 return;
             }
 
-            WindowManager wm = (WindowManager) activity.getSystemService(Activity.WINDOW_SERVICE);
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+            WindowManager wm = (WindowManager) a.getSystemService(Activity.WINDOW_SERVICE);
+            WindowManager.LayoutParams p = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -113,35 +82,30 @@ public class RokidTouchBridge {
                     | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             );
-            params.gravity = Gravity.TOP | Gravity.LEFT;
+            p.gravity = Gravity.TOP | Gravity.LEFT;
 
-            View touchView = new View(activity);
-            touchView.setOnTouchListener(new View.OnTouchListener() {
+            View v = new View(a);
+            v.setOnTouchListener(new View.OnTouchListener() {
                 @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    handleMotionEvent(event);
+                public boolean onTouch(View vv, MotionEvent e) {
+                    handleTouch(e);
                     return true;
                 }
             });
-
-            wm.addView(touchView, params);
-            sOverlayReady = true;
+            wm.addView(v, p);
             Log.i("RokidTouchBridge", "System overlay registered");
         } catch (SecurityException e) {
-            Log.e("RokidTouchBridge", "SYSTEM_ALERT_WINDOW permission denied!", e);
+            Log.e("RokidTouchBridge", "permission denied", e);
         } catch (Exception e) {
-            Log.e("RokidTouchBridge", "Failed to setup overlay", e);
+            Log.e("RokidTouchBridge", "setupOverlay failed", e);
         }
     }
 
-    // ---- 触控处理 ----
-
-    private static void handleMotionEvent(MotionEvent event) {
-        float x = event.getX();
-        float y = event.getY();
-
+    private static void handleTouch(MotionEvent e) {
+        float x = e.getX();
+        float y = e.getY();
         synchronized (sLock) {
-            switch (event.getActionMasked()) {
+            switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     sTouchState = 1;
                     sClickPending = true;
@@ -168,8 +132,6 @@ public class RokidTouchBridge {
         writeState();
     }
 
-    // ---- 文件写入 ----
-
     private static void writeState() {
         if (sTouchFile == null) return;
         try {
@@ -186,8 +148,8 @@ public class RokidTouchBridge {
             FileWriter fw = new FileWriter(sTouchFile, false);
             fw.write(line);
             fw.close();
-        } catch (Exception e) {
-            // silently ignore write errors
+        } catch (Exception ex) {
+            // ignore
         }
     }
 }
