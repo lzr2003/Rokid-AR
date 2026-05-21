@@ -3,7 +3,7 @@ package com.rokid.godot;
 import android.app.Activity;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
+
 import android.util.Log;
 
 /**
@@ -45,8 +45,6 @@ public class RokidTouchBridge {
 
     private static void setupTouchInterceptor(Activity activity) {
         try {
-            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TOUCHABLE);
-
             View decorView = activity.getWindow().getDecorView();
             decorView.setOnTouchListener(new View.OnTouchListener() {
                 @Override
