@@ -1,17 +1,8 @@
 package com.rokid.godot;
 
-import android.app.Activity;
-import android.app.Application;
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Bundle;
-import android.provider.Settings;
-import android.graphics.PixelFormat;
-import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.WindowManager;
 import android.util.Log;
+
+import com.rokid.unitycallbridge.UnityCallBridge;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -19,7 +10,6 @@ import java.io.FileWriter;
 public class RokidTouchBridge {
 
     private static volatile boolean sInitDone = false;
-    private static volatile boolean sOverlayReady = false;
 
     private static volatile float sDeltaX = 0.0f;
     private static volatile float sDeltaY = 0.0f;
@@ -32,98 +22,58 @@ public class RokidTouchBridge {
 
     private static File sTouchFile = null;
 
-    public static void init(Application app) {
+    public static void init() {
         if (sInitDone) return;
         sInitDone = true;
 
-        app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-            @Override
-            public void onActivityCreated(Activity a, Bundle b) {
-                String name = a.getClass().getName();
-                if (name.contains("Godot")) {
-                    final Activity activity = a;
-                    sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
-                    app.unregisterActivityLifecycleCallbacks(this);
-                    activity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            setupOverlay(activity);
-                        }
-                    });
-                }
-            }
-            @Override public void onActivityStarted(Activity a) {}
-            @Override public void onActivityResumed(Activity a) {}
-            @Override public void onActivityPaused(Activity a) {}
-            @Override public void onActivityStopped(Activity a) {}
-            @Override public void onActivitySaveInstanceState(Activity a, Bundle b) {}
-            @Override public void onActivityDestroyed(Activity a) {}
-        });
+        // 使用 /data/local/tmp/ 不需要任何权限
+        sTouchFile = new File("/data/local/tmp/rokid_touch_state.txt");
+
+        // 1. 注册 VirtualController (Mouse 模式, type=5)
+        String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
+            "{\"name\":\"type\",\"value\":\"5\"}]}";
+        UnityCallBridge.onUnityCall(regJson);
+
+        // 2. 注册触控回调
+        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\"," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\"}}";
+        UnityCallBridge.onUnityCall(touchJson);
+
+        // 3. 注册滚动回调
+        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\"," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\"}}";
+        UnityCallBridge.onUnityCall(scrollJson);
+
+        Log.i("RokidTouchBridge", "VirtualController registered");
     }
 
-    private static void setupOverlay(final Activity a) {
-        try {
-            if (!Settings.canDrawOverlays(a)) {
-                Log.w("RokidTouchBridge", "SYSTEM_ALERT_WINDOW not granted, requesting...");
-                Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + a.getPackageName()));
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                a.startActivity(i);
-                return;
-            }
+    // TouchReceiver 回调
 
-            WindowManager wm = (WindowManager) a.getSystemService(Activity.WINDOW_SERVICE);
-            WindowManager.LayoutParams p = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-            );
-            p.gravity = Gravity.TOP | Gravity.LEFT;
-
-            View v = new View(a);
-            v.setOnTouchListener(new View.OnTouchListener() {
-                @Override
-                public boolean onTouch(View vv, MotionEvent e) {
-                    handleTouch(e);
-                    return true;
-                }
-            });
-            wm.addView(v, p);
-            sOverlayReady = true;
-            Log.i("RokidTouchBridge", "System overlay registered");
-        } catch (SecurityException e) {
-            Log.e("RokidTouchBridge", "permission denied", e);
-        } catch (Exception e) {
-            Log.e("RokidTouchBridge", "setupOverlay failed", e);
-        }
-    }
-
-    private static void handleTouch(MotionEvent e) {
-        float x = e.getX();
-        float y = e.getY();
+    public static void onTouchEvent(String type, float x, float y) {
         synchronized (sLock) {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    sTouchState = 1;
-                    sClickPending = true;
-                    sDeltaX = 0; sDeltaY = 0;
-                    sLastX = x; sLastY = y;
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    sTouchState = 2;
-                    sDeltaX = x - sLastX;
-                    sDeltaY = y - sLastY;
-                    sLastX = x; sLastY = y;
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    sTouchState = 0;
-                    sDeltaX = 0; sDeltaY = 0;
-                    break;
+            if ("down".equals(type)) {
+                sTouchState = 1;
+                sClickPending = true;
+                sDeltaX = 0; sDeltaY = 0;
+                sLastX = x; sLastY = y;
+            } else if ("move".equals(type) || "drag".equals(type)) {
+                sTouchState = 2;
+                sDeltaX = x - sLastX;
+                sDeltaY = y - sLastY;
+                sLastX = x; sLastY = y;
+            } else if ("up".equals(type)) {
+                sTouchState = 0;
+                sDeltaX = 0; sDeltaY = 0;
             }
+        }
+        writeState();
+    }
+
+    public static void onScrollEvent(float dx, float dy) {
+        synchronized (sLock) {
+            sDeltaX = dx;
+            sDeltaY = dy;
+            sTouchState = 3;
         }
         writeState();
     }

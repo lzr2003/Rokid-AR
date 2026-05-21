@@ -186,9 +186,9 @@ func _process(delta: float) -> void:
 
 
 func _poll_touch_file() -> void:
-	if not FileAccess.file_exists("user://touch_state.txt"):
+	if not FileAccess.file_exists("/data/local/tmp/rokid_touch_state.txt"):
 		return
-	var f := FileAccess.open("user://touch_state.txt", FileAccess.READ)
+	var f := FileAccess.open("/data/local/tmp/rokid_touch_state.txt", FileAccess.READ)
 	if not f:
 		return
 	var line := f.get_as_text().strip_edges()
