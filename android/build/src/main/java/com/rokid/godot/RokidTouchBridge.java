@@ -11,13 +11,17 @@ import android.view.View;
 import android.view.WindowManager;
 import android.util.Log;
 
+import java.io.File;
+import java.io.FileWriter;
+
 /**
- * Rokid 触控板桥接 — 通过系统 overlay 窗口拦截触控事件
- * 需要 SYSTEM_ALERT_WINDOW 权限（debug 安装时自动授予）
+ * Rokid 触控板桥接 — 系统 overlay 拦截 + 文件写入供 Godot 读取
  */
 public class RokidTouchBridge {
 
     private static volatile boolean sInitialized = false;
+    private static volatile boolean sOverlayReady = false;
+
     private static volatile float sDeltaX = 0.0f;
     private static volatile float sDeltaY = 0.0f;
     private static volatile int sTouchState = 0;
@@ -27,10 +31,11 @@ public class RokidTouchBridge {
     private static float sLastX = 0.0f;
     private static float sLastY = 0.0f;
 
-    private static volatile boolean sOverlayReady = false;
+    private static File sTouchFile = null;
 
     public static void init() {
         if (sInitialized) return;
+        sInitialized = true;
 
         try {
             Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
@@ -39,7 +44,7 @@ public class RokidTouchBridge {
                 Log.e("RokidTouchBridge", "Godot activity is null");
                 return;
             }
-            sInitialized = true;
+            sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
             activity.runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -53,7 +58,6 @@ public class RokidTouchBridge {
 
     private static void setupOverlay(final Activity activity) {
         try {
-            // 检查 SYSTEM_ALERT_WINDOW 权限
             if (!Settings.canDrawOverlays(activity)) {
                 Log.w("RokidTouchBridge", "SYSTEM_ALERT_WINDOW not granted, requesting...");
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -64,7 +68,6 @@ public class RokidTouchBridge {
             }
 
             WindowManager wm = (WindowManager) activity.getSystemService(Activity.WINDOW_SERVICE);
-
             WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -74,8 +77,6 @@ public class RokidTouchBridge {
                 PixelFormat.TRANSLUCENT
             );
             params.gravity = Gravity.TOP | Gravity.LEFT;
-            params.x = 0;
-            params.y = 0;
 
             View touchView = new View(activity);
             touchView.setOnTouchListener(new View.OnTouchListener() {
@@ -88,7 +89,7 @@ public class RokidTouchBridge {
 
             wm.addView(touchView, params);
             sOverlayReady = true;
-            Log.i("RokidTouchBridge", "System overlay registered for touch interception");
+            Log.i("RokidTouchBridge", "System overlay registered");
         } catch (SecurityException e) {
             Log.e("RokidTouchBridge", "SYSTEM_ALERT_WINDOW permission denied!", e);
         } catch (Exception e) {
@@ -127,16 +128,28 @@ public class RokidTouchBridge {
                     break;
             }
         }
+        writeState();
     }
 
-    // ------ GDExtension JNI 轮询接口 ------
-
-    public static float getDeltaX() { synchronized (sLock) { float v = sDeltaX; sDeltaX = 0; return v; } }
-    public static float getDeltaY() { synchronized (sLock) { float v = sDeltaY; sDeltaY = 0; return v; } }
-    public static int getTouchState() { return sTouchState; }
-    public static boolean consumeClick() {
-        boolean v = sClickPending;
-        sClickPending = false;
-        return v;
+    private static void writeState() {
+        if (sTouchFile == null) return;
+        try {
+            String line;
+            boolean click;
+            float dx, dy;
+            int state;
+            synchronized (sLock) {
+                dx = sDeltaX; sDeltaX = 0;
+                dy = sDeltaY; sDeltaY = 0;
+                state = sTouchState;
+                click = sClickPending; sClickPending = false;
+            }
+            line = String.format("%.3f %.3f %d %d", dx, dy, state, click ? 1 : 0);
+            FileWriter fw = new FileWriter(sTouchFile, false);
+            fw.write(line);
+            fw.close();
+        } catch (Exception e) {
+            // silently ignore write errors
+        }
     }
 }

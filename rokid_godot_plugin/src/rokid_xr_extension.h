@@ -3,9 +3,7 @@
 #include <godot_cpp/classes/open_xrapi_extension.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector3.hpp>
-#include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/quaternion.hpp>
-#include <atomic>
 
 namespace godot {
 
@@ -40,17 +38,6 @@ private:
     PFN_xrIsUsbConnect          pfn_is_usb_connect       = nullptr;
     PFN_xrGetGlassFirmwareVersion pfn_get_glass_fw       = nullptr;
 
-    // ------ 触控拦截 ------
-    std::atomic<float> _touch_delta_x{0.0f};
-    std::atomic<float> _touch_delta_y{0.0f};
-    std::atomic<float> _touch_last_x{0.0f};
-    std::atomic<float> _touch_last_y{0.0f};
-    std::atomic<int>   _touch_state{0};  // 0=idle, 1=down, 2=moving
-    std::atomic<bool>  _touch_click_pending{false};
-    bool _touch_listener_registered = false;
-
-    void _init_touch_listener();
-
 protected:
     static void _bind_methods();
 public:
@@ -77,10 +64,6 @@ public:
     bool check_usb_connected();
     String get_glass_firmware_version();
 
-    // 触控接口
-    Vector2 get_touch_delta();      // 返回累加 delta 并清零
-    int get_touch_state();          // 0=idle, 1=down, 2=moving
-    bool consume_touch_click();     // 消费一次点击
 };
 
 } // namespace godot
