@@ -39,16 +39,24 @@ public class RokidTouchBridge {
 
         try {
             Class<?> godotClass = Class.forName("org.godotengine.godot.Godot");
-            final Activity activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
-            if (activity == null) {
+            // 尝试获取 Godot 单例实例，再调用 getActivity()
+            Activity activity = null;
+            try {
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(null);
+            } catch (NullPointerException e) {
+                Object godot = godotClass.getMethod("getInstance").invoke(null);
+                activity = (Activity) godotClass.getMethod("getActivity").invoke(godot);
+            }
+            final Activity act = activity;
+            if (act == null) {
                 Log.e("RokidTouchBridge", "Godot activity is null");
                 return;
             }
-            sTouchFile = new File(activity.getFilesDir(), "touch_state.txt");
-            activity.runOnUiThread(new Runnable() {
+            sTouchFile = new File(act.getFilesDir(), "touch_state.txt");
+            act.runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    setupOverlay(activity);
+                    setupOverlay(act);
                 }
             });
         } catch (Exception e) {
