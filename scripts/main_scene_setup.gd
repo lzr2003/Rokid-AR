@@ -189,28 +189,13 @@ func _process(_delta: float) -> void:
 	_log_counter += 1
 	_scan_diagnostics()
 
-	var text: String = ""
-	text += "Dev:%s XR:%s 3DOF:%s\n" % [
-		OS.get_model_name(),
-		"ON" if _has_rokid_xr() else "OFF",
-		"YES" if _use_three_dof else "NO"
-	]
+	var text: String = "LastEvt:%s Move:%d Press:%d\n" % [_diag_last_event, _tpad_move_count, _tpad_press_count]
+	text += "Touch:%s d(%.0f,%.0f)\n" % [_tpad_touching, _tpad_latest_delta.x, _tpad_latest_delta.y]
 
-	# --- 输入诊断 ---
-	text += "Event[%d]:%s\n" % [_tpad_move_count, _diag_last_event]
-	text += "Touch:%s d(%.0f,%.0f) P:%d R:%d\n" % [
-		_tpad_touching, _tpad_latest_delta.x, _tpad_latest_delta.y,
-		_tpad_press_count, _tpad_release_count
-	]
-	text += "Joy:%s\n" % _diag_joypads
-	text += "XRTracker:%s\n" % _diag_xr_trackers
-
-	# --- IMU ---
 	if _three_dof_ray_pose:
 		var fwd: Vector3 = -_three_dof_ray_pose.global_transform.basis.z
-		text += "IMU(%.2f,%.2f,%.2f)\n" % [fwd.x, fwd.y, fwd.z]
+		text += "IMU[%.2f,%.2f,%.2f]\n" % [fwd.x, fwd.y, fwd.z]
 
-	# --- 射线 ---
 	if _active_ray_interactor:
 		var ri := _active_ray_interactor
 		var names: Array[String] = ["N", "H", "S", "D"]

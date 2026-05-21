@@ -135,9 +135,10 @@ func _handle_key(event: InputEvent) -> bool:
 		KEY_DOWN, KEY_S: dpad = Vector2(0, -1)
 		KEY_LEFT, KEY_A:  dpad = Vector2(-1, 0)
 		KEY_RIGHT, KEY_D: dpad = Vector2(1, 0)
-		KEY_ENTER, KEY_SPACE:
+		KEY_ENTER, KEY_SPACE, KEY_MENU, KEY_BACK, KEY_HOME:
 			_is_touching = true
 			touchpad_pressed.emit()
+			print("[TouchpadInput] KEY press keycode=%d" % ke.keycode)
 			return true
 		_: return false
 	if dpad != Vector2.ZERO:
@@ -169,6 +170,7 @@ func _handle_gamepad(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if _is_station2:
+		_poll_rokid_touch()
 		_poll_xr_tracker(delta)
 		_poll_joypad(delta)
 	if _is_touching and _dpad_vec != Vector2.ZERO:
@@ -180,6 +182,32 @@ func _process(delta: float) -> void:
 	elif not _is_touching:
 		_dpad_hold_time = 0.0
 		_dpad_vec = Vector2.ZERO
+
+
+func _poll_rokid_touch() -> void:
+	# 通过 RokidXR GDExtension 读取 JNI 拦截的触控数据
+	var sok = _has_rokid_xr()
+	if not sok:
+		return
+	var delta: Vector2 = Engine.get_singleton("RokidXR").get_touch_delta()
+	if delta.length() > 0.5:
+		_emit_moved(delta * 0.14)
+	var state: int = Engine.get_singleton("RokidXR").get_touch_state()
+	if state == 1 and not _is_touching:
+		_is_touching = true
+		touchpad_pressed.emit()
+	elif state == 0 and _is_touching:
+		_is_touching = false
+		touchpad_released.emit()
+	var click: bool = Engine.get_singleton("RokidXR").consume_touch_click()
+	if click:
+		if not _is_touching:
+			_is_touching = true
+			touchpad_pressed.emit()
+
+
+func _has_rokid_xr() -> bool:
+	return Engine.has_singleton("RokidXR") and Engine.get_singleton("RokidXR").is_ready()
 
 
 func _poll_xr_tracker(delta: float) -> void:

@@ -1,13 +1,12 @@
 extends Node
 ## Station 2 控制器 IMU 姿态读取（Autoload）
-## 主路径: XRServer.get_tracker("head") — OpenXR 头部追踪
-## 备路径: Input.get_gyroscope() + Input.get_gravity() — Android 原生传感器
+## 主路径: RokidXR.get_phone_pose()（直接读控制器）
+## 备路径: Input.get_gyroscope() + Input.get_gravity()（不接眼镜时）
 
 const FILTER_ALPHA: float = 0.02
 
 signal orientation_changed(quat: Quaternion)
 signal imu_recentered()
-signal gesture_click()
 
 var orientation: Quaternion = Quaternion.IDENTITY
 
@@ -16,18 +15,15 @@ var _gyro_bias: Vector3 = Vector3.ZERO
 var _sample_count: int = 0
 var _samples: Array = []
 var _log_timer: float = 0.0
-var _use_xr: bool = false
-
-# 手势检测：快速翻转 → 点击
-const SHAKE_THRESHOLD: float = 5.0       # rad/s, 约 286°/s
-const GESTURE_COOLDOWN: float = 0.8       # 两次手势间最少间隔
-var _gesture_cooldown_timer: float = 0.0
-var _was_shaking: bool = false
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_start_calibration()
+
+
+func _has_rokid_xr() -> bool:
+	return Engine.has_singleton("RokidXR") and Engine.get_singleton("RokidXR").is_ready()
 
 
 func _start_calibration() -> void:
@@ -38,29 +34,17 @@ func _start_calibration() -> void:
 
 
 func _process(delta: float) -> void:
-	# 1. 优先：RokidXR GDExtension get_phone_pose()（直接读 Station 2 IMU）
-	if RokidXR and RokidXR.is_ready():
-		var pose: Dictionary = RokidXR.get_phone_pose()
+	# 1. 优先：RokidXR get_phone_pose()（Station 2 控制器 IMU）
+	if _has_rokid_xr():
+		var pose: Dictionary = Engine.get_singleton("RokidXR").get_phone_pose()
 		if not pose.is_empty() and pose.has("orientation"):
 			var q: Quaternion = pose["orientation"]
-			# Unity SDK: data[2] = -data[2] 坐标转换
 			orientation = Quaternion(q.x, q.y, -q.z, q.w)
 			orientation_changed.emit(orientation)
 			_log_rokid(delta)
-			return
+		return  # ← 有 RokidXR 就停在这里，不回退
 
-	# 2. OpenXR 头部追踪
-	var xr_orient: Variant = _get_xr_head_orientation()
-	if xr_orient != null:
-		if not _use_xr:
-			_use_xr = true
-			print("[Station2IMU] Using XR head tracker")
-		orientation = xr_orient
-		orientation_changed.emit(orientation)
-		_log_xr(delta)
-		return
-
-	# 3. 兜底：Godot Input 传感器
+	# 2. 无 RokidXR：Godot Input 传感器（桌面调试 / 不接眼镜）
 	var gyro: Vector3 = Input.get_gyroscope()
 
 	if not _calibrated:
@@ -78,19 +62,6 @@ func _process(delta: float) -> void:
 	gyro -= _gyro_bias
 	_update_orientation(gyro, delta)
 	_log_sensors(gyro)
-
-
-func _get_xr_head_orientation() -> Variant:
-	var tracker: XRPositionalTracker = XRServer.get_tracker("head")
-	if tracker == null:
-		return null
-	var xr_pose: XRPose = tracker.get_pose("default")
-	if xr_pose == null:
-		return null
-	var t: Transform3D = xr_pose.transform
-	if t == Transform3D.IDENTITY or t == Transform3D():
-		return null
-	return t.basis.get_rotation_quaternion()
 
 
 func _update_orientation(gyro: Vector3, delta: float) -> void:
@@ -123,16 +94,6 @@ func _log_rokid(delta: float) -> void:
 		])
 
 
-func _log_xr(delta: float) -> void:
-	_log_timer += delta
-	if _log_timer > 2.0:
-		_log_timer = 0.0
-		var euler: Vector3 = orientation.get_euler()
-		print("[Station2IMU] XR head euler=(%.1f,%.1f,%.1f)" % [
-			rad_to_deg(euler.x), rad_to_deg(euler.y), rad_to_deg(euler.z)
-		])
-
-
 func _log_sensors(gyro: Vector3) -> void:
 	_log_timer += 1.0 / 60.0
 	if _log_timer > 2.0:
@@ -150,7 +111,7 @@ func recenter() -> void:
 
 
 func is_calibrated() -> bool:
-	return _calibrated or _use_xr
+	return _calibrated or _has_rokid_xr()
 
 
 func _shortest_arc(from: Vector3, to: Vector3) -> Quaternion:
