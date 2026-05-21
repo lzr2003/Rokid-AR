@@ -2,11 +2,67 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/open_xrapi_extension.hpp>
 
+#ifdef ANDROID_ENABLED
+#include <jni.h>
+#endif
+
 namespace godot {
 
-// 可变参数宏（支持多参数打印）
 #define ROKID_LOG(...) UtilityFunctions::print("[RokidC++] [", __LINE__, "] ", __VA_ARGS__)
 #define ROKID_ERR(...) UtilityFunctions::printerr("[RokidC++] [ERROR] [", __LINE__, "] ", __VA_ARGS__)
+
+#ifdef ANDROID_ENABLED
+// ------ JNI 辅助（缓存 Java 类和方法 ID） ------
+static JavaVM* g_jvm = nullptr;
+static jclass g_touch_class = nullptr;
+static jmethodID g_get_delta_x = nullptr;
+static jmethodID g_get_delta_y = nullptr;
+static jmethodID g_get_touch_state = nullptr;
+static jmethodID g_consume_click = nullptr;
+static bool g_jni_ready = false;
+
+static jmethodID g_init_bridge = nullptr;
+
+static void _ensure_jni() {
+    if (g_jni_ready) return;
+    JNI_GetCreatedJavaVMs(&g_jvm, 1, nullptr);
+    if (!g_jvm) return;
+    JNIEnv* env;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        g_jvm->AttachCurrentThread(&env, nullptr);
+    }
+    jclass cls = env->FindClass("com/rokid/godot/RokidTouchBridge");
+    if (!cls) {
+        ROKID_LOG("RokidTouchBridge class not found (will retry)");
+        return;
+    }
+    g_touch_class = (jclass)env->NewGlobalRef(cls);
+    g_init_bridge = env->GetStaticMethodID(g_touch_class, "init", "()V");
+    g_get_delta_x = env->GetStaticMethodID(g_touch_class, "getDeltaX", "()F");
+    g_get_delta_y = env->GetStaticMethodID(g_touch_class, "getDeltaY", "()F");
+    g_get_touch_state = env->GetStaticMethodID(g_touch_class, "getTouchState", "()I");
+    g_consume_click = env->GetStaticMethodID(g_touch_class, "consumeClick", "()Z");
+    if (g_init_bridge && g_get_delta_x && g_get_delta_y && g_get_touch_state && g_consume_click) {
+        g_jni_ready = true;
+        ROKID_LOG("RokidTouchBridge JNI ready");
+    }
+}
+
+static void _poll_touch_data(float& out_dx, float& out_dy, int& out_state, bool& out_click) {
+    if (!g_jni_ready) {
+        _ensure_jni();
+        if (!g_jni_ready) return;
+    }
+    JNIEnv* env;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        g_jvm->AttachCurrentThread(&env, nullptr);
+    }
+    out_dx = env->CallStaticFloatMethod(g_touch_class, g_get_delta_x);
+    out_dy = env->CallStaticFloatMethod(g_touch_class, g_get_delta_y);
+    out_state = env->CallStaticIntMethod(g_touch_class, g_get_touch_state);
+    out_click = env->CallStaticBooleanMethod(g_touch_class, g_consume_click);
+}
+#endif // ANDROID_ENABLED
 
 // ============================================================
 // Lifecycle
@@ -19,6 +75,14 @@ RokidXRExtension::RokidXRExtension() {
 }
 
 RokidXRExtension::~RokidXRExtension() {
+#ifdef ANDROID_ENABLED
+    if (g_touch_class) {
+        JNIEnv* env;
+        if (g_jvm && g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) == JNI_OK) {
+            env->DeleteGlobalRef(g_touch_class);
+        }
+    }
+#endif
     s_instance = nullptr;
     ROKID_LOG("Destructor called");
 }
@@ -35,6 +99,11 @@ void RokidXRExtension::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_glass_name"), &RokidXRExtension::get_glass_name);
     ClassDB::bind_method(D_METHOD("check_usb_connected"), &RokidXRExtension::check_usb_connected);
     ClassDB::bind_method(D_METHOD("get_glass_firmware_version"), &RokidXRExtension::get_glass_firmware_version);
+    // 触控
+    ClassDB::bind_method(D_METHOD("get_touch_delta"), &RokidXRExtension::get_touch_delta);
+    ClassDB::bind_method(D_METHOD("get_touch_state"), &RokidXRExtension::get_touch_state);
+    ClassDB::bind_method(D_METHOD("consume_touch_click"), &RokidXRExtension::consume_touch_click);
+    ClassDB::bind_method(D_METHOD("init_touch_listener"), &RokidXRExtension::_init_touch_listener);
 }
 
 // ============================================================
@@ -110,6 +179,7 @@ void RokidXRExtension::_on_instance_created(uint64_t p_instance) {
 void RokidXRExtension::_on_session_created(uint64_t p_session) {
     ROKID_LOG("_on_session_created triggered, XrSession = ", p_session);
     rokid_ready = true;
+    _init_touch_listener();
 }
 
 // ============================================================
@@ -141,8 +211,16 @@ void RokidXRExtension::_on_instance_destroyed() {
 // ============================================================
 
 void RokidXRExtension::_on_process() {
-    // Uncomment for development debugging
-    // ROKID_LOG("_on_process called");
+#ifdef ANDROID_ENABLED
+    float dx = 0, dy = 0;
+    int state = 0;
+    bool click = false;
+    _poll_touch_data(dx, dy, state, click);
+    _touch_delta_x.store(dx);
+    _touch_delta_y.store(dy);
+    _touch_state.store(state);
+    if (click) _touch_click_pending.store(true);
+#endif
 }
 
 // ============================================================
@@ -245,6 +323,38 @@ String RokidXRExtension::get_glass_firmware_version() {
     char buf[256] = {0};
     pfn_get_glass_fw(buf, sizeof(buf));
     return String(buf);
+}
+
+// ============================================================
+// Touch interception
+// ============================================================
+
+void RokidXRExtension::_init_touch_listener() {
+#ifdef ANDROID_ENABLED
+    ROKID_LOG("_init_touch_listener");
+    _ensure_jni();
+    if (!g_jni_ready) return;
+    JNIEnv* env;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        g_jvm->AttachCurrentThread(&env, nullptr);
+    }
+    env->CallStaticVoidMethod(g_touch_class, g_init_bridge);
+    ROKID_LOG("RokidTouchBridge.init() called");
+#endif
+}
+
+Vector2 RokidXRExtension::get_touch_delta() {
+    float dx = _touch_delta_x.exchange(0.0f);
+    float dy = _touch_delta_y.exchange(0.0f);
+    return Vector2(dx, dy);
+}
+
+int RokidXRExtension::get_touch_state() {
+    return _touch_state.load();
+}
+
+bool RokidXRExtension::consume_touch_click() {
+    return _touch_click_pending.exchange(false);
 }
 
 } // namespace godot
