@@ -26,10 +26,21 @@ static jmethodID g_init_bridge = nullptr;
 
 static void _ensure_jni() {
     if (g_jni_ready) return;
-    // dlsym 避免 .so 直接链接 JNI_GetCreatedJavaVMs（ART 已加载，运行时查找）
+    // dlsym 避免 .so 直接链接 JNI_GetCreatedJavaVMs
     typedef jint (*PFN_GetCreatedJavaVMs)(JavaVM**, jsize, jsize*);
+    // 先尝试 RTLD_DEFAULT（ART 已加载，进程全局可见）
     auto pfn_get_vms = (PFN_GetCreatedJavaVMs)dlsym(RTLD_DEFAULT, "JNI_GetCreatedJavaVMs");
-    if (!pfn_get_vms) return;
+    // 如果找不到，尝试先加载 libnativehelper.so
+    if (!pfn_get_vms) {
+        void* handle = dlopen("libnativehelper.so", RTLD_NOW | RTLD_GLOBAL);
+        if (handle) {
+            pfn_get_vms = (PFN_GetCreatedJavaVMs)dlsym(handle, "JNI_GetCreatedJavaVMs");
+        }
+    }
+    if (!pfn_get_vms) {
+        ROKID_LOG("dlsym JNI_GetCreatedJavaVMs failed: ", dlerror());
+        return;
+    }
     pfn_get_vms(&g_jvm, 1, nullptr);
     if (!g_jvm) return;
     JNIEnv* env;
