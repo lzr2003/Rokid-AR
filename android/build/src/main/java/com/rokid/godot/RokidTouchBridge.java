@@ -30,8 +30,9 @@ public class RokidTouchBridge {
         sTouchFile = new File("/data/local/tmp/rokid_touch_state.txt");
 
         // 1. 注册 VirtualController (Mouse 模式, type=5)
+        // args 数组里每个元素必须是 JSON 字符串，不是 JSON 对象
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
-            "{\"name\":\"type\",\"value\":\"5\"}]}";
+            "\"{\\\"name\\\":\\\"type\\\",\\\"value\\\":\\\"5\\\"}\"]}";
         UnityCallBridge.onUnityCall(regJson);
 
         // 2. 注册触控回调
