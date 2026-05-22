@@ -17,22 +17,24 @@ public class RokidTouchBridge {
     private static float sLastX = 0.0f;
     private static float sLastY = 0.0f;
 
+    static { Log.i("RokidTouchBridge", "CLASS LOADED"); }
+
     public static void init() {
         if (sInitDone) return;
         sInitDone = true;
 
-        // 1. 注册 VirtualController
+        // 1. 注册 VirtualController（args 是 List<String>，必须传 JSON 字符串）
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
-            "{\"name\":\"type\",\"value\":\"5\"}]}";
+            "\"{\\\"name\\\":\\\"type\\\",\\\"value\\\":\\\"5\\\"}\"]}";
         Log.i("RokidTouchBridge", "registerFrag result: " + UnityCallBridge.onUnityCall(regJson));
 
         // 2. 注册触控回调
-        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\"," +
+        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\",\"args\":[]," +
             "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\"}}";
         Log.i("RokidTouchBridge", "setOnTouchListener result: " + UnityCallBridge.onUnityCall(touchJson));
 
         // 3. 注册滚动回调
-        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\"," +
+        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\",\"args\":[]," +
             "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\"}}";
         Log.i("RokidTouchBridge", "setOnScrollListener result: " + UnityCallBridge.onUnityCall(scrollJson));
 
@@ -76,7 +78,7 @@ public class RokidTouchBridge {
     // ============ TouchReceiver 回调 ============
 
     public static void onTouchEvent(String type, float x, float y) {
-        Log.d("RokidTouchBridge", "onTouchEvent type=" + type + " x=" + x + " y=" + y);
+        Log.i("RokidTouchBridge", "onTouchEvent type=" + type + " x=" + x + " y=" + y);
         synchronized (sLock) {
             if ("down".equals(type)) {
                 sTouchState = 1;
@@ -96,7 +98,7 @@ public class RokidTouchBridge {
     }
 
     public static void onScrollEvent(float dx, float dy) {
-        Log.d("RokidTouchBridge", "onScrollEvent dx=" + dx + " dy=" + dy);
+        Log.i("RokidTouchBridge", "onScrollEvent dx=" + dx + " dy=" + dy);
         synchronized (sLock) {
             sDeltaX = dx;
             sDeltaY = dy;
