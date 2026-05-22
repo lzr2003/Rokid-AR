@@ -27,11 +27,14 @@ if env["platform"] == "android":
         source=["src/jni_bridge.cpp"],
     )
     # 打包为 android/plugins/rokid_jni_bridge.aar（Godot 4.3+ .gdap 格式）
+    # 注意：SConstruct 在 rokid_godot_plugin/ 下，aar 要放到项目根目录的 android/plugins/
     import zipfile
     def package_jni_aar(target, source, env):
-        aar_dir = "android/plugins"
-        os.makedirs(aar_dir, exist_ok=True)
+        # 以 SConstruct 所在目录为基准，定位到项目根目录
+        sc_dir = env.Dir("#").abspath
+        aar_dir = os.path.join(sc_dir, "..", "android", "plugins")
         aar_path = os.path.join(aar_dir, "rokid_jni_bridge.aar")
+        os.makedirs(aar_dir, exist_ok=True)
         for s in source:
             so_path = str(s)
             with zipfile.ZipFile(aar_path, "w", zipfile.ZIP_DEFLATED) as zf:
