@@ -50,7 +50,8 @@ static void _evdev_open() {
     if (g_evdev_fd >= 0) return;
     g_evdev_fd = open("/dev/input/event4", O_RDONLY | O_NONBLOCK);
     if (g_evdev_fd < 0) {
-        ROKID_ERR_EV("[Evdev] open /dev/input/event4 failed, errno=", errno);
+        int e = errno;
+        ROKID_ERR_EV("[Evdev] open /dev/input/event4 failed, errno=%d", e);
         return;
     }
     ROKID_LOG_EV("[Evdev] /dev/input/event4 opened, fd=", g_evdev_fd);
