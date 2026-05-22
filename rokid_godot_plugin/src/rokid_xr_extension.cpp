@@ -28,16 +28,19 @@ static bool g_jni_ready = false;
 // 尝试从 librokid_jni.so 获取安全的 JavaVM
 static void _try_load_jvm() {
     if (g_jvm) return;
+    ROKID_LOG("[Step 3/5] dlopen(\"librokid_jni.so\") ...");
     void* handle = dlopen("librokid_jni.so", RTLD_NOW);
     if (!handle) {
-        ROKID_LOG("librokid_jni.so not loaded yet: ", dlerror());
+        ROKID_ERR("[Step 3/5] FAILED — librokid_jni.so not loaded yet: ", dlerror());
         return;
     }
     typedef JavaVM* (*PFN_rokid_get_jvm)();
     auto fn = (PFN_rokid_get_jvm)dlsym(handle, "rokid_get_jvm");
     if (fn) {
         g_jvm = fn();
-        ROKID_LOG("JavaVM obtained safely from librokid_jni.so");
+        ROKID_LOG("[Step 3/5] OK — JavaVM obtained: ", g_jvm);
+    } else {
+        ROKID_ERR("[Step 3/5] FAILED — dlsym(\"rokid_get_jvm\") returned null");
     }
 }
 #endif
@@ -46,15 +49,22 @@ void RokidXRExtension::_ensure_jni() {
 #ifdef ANDROID_ENABLED
     if (g_jni_ready) return;
     _try_load_jvm();
-    if (!g_jvm) return;
+    if (!g_jvm) {
+        ROKID_ERR("[Step 4/5] SKIP — g_jvm is null, JNI bridge not ready");
+        return;
+    }
 
-    JNIEnv* env;
-    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
-        g_jvm->AttachCurrentThread(&env, nullptr);
+    JNIEnv* env = nullptr;
+    jint getEnvRes = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    ROKID_LOG("[Step 4/5] GetEnv result: ", getEnvRes == JNI_OK ? "JNI_OK" : "JNI_EDETACHED");
+    if (getEnvRes != JNI_OK) {
+        jint attachRes = g_jvm->AttachCurrentThread(&env, nullptr);
+        ROKID_LOG("[Step 4/5] AttachCurrentThread result: ", attachRes == JNI_OK ? "JNI_OK" : "FAILED");
     }
     jclass cls = env->FindClass("com/rokid/godot/RokidTouchBridge");
     if (!cls) {
-        ROKID_LOG("RokidTouchBridge class not found (will retry)");
+        ROKID_ERR("[Step 4/5] FAILED — RokidTouchBridge class not found (will retry)");
+        env->ExceptionClear();
         return;
     }
     g_touch_class = (jclass)env->NewGlobalRef(cls);
@@ -64,7 +74,9 @@ void RokidXRExtension::_ensure_jni() {
     g_consume_click = env->GetStaticMethodID(g_touch_class, "consumeClick", "()Z");
     if (g_get_delta_x && g_get_delta_y && g_get_touch_state && g_consume_click) {
         g_jni_ready = true;
-        ROKID_LOG("RokidTouchBridge JNI ready");
+        ROKID_LOG("[Step 4/5] OK — RokidTouchBridge JNI ready");
+    } else {
+        ROKID_ERR("[Step 4/5] FAILED — GetStaticMethodID returned null");
     }
 #endif
 }
@@ -83,6 +95,11 @@ void RokidXRExtension::_poll_touch_data(float& out_dx, float& out_dy, int& out_s
     out_dy = env->CallStaticFloatMethod(g_touch_class, g_get_delta_y);
     out_state = env->CallStaticIntMethod(g_touch_class, g_get_touch_state);
     out_click = env->CallStaticBooleanMethod(g_touch_class, g_consume_click);
+    static bool s_logged_first_poll = false;
+    if (!s_logged_first_poll) {
+        s_logged_first_poll = true;
+        ROKID_LOG("[Step 5/5] OK — First JNI poll succeeded: dx=", out_dx, " dy=", out_dy, " state=", out_state);
+    }
 #endif
 }
 

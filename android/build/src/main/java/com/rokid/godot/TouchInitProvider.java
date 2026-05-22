@@ -10,11 +10,14 @@ public class TouchInitProvider extends ContentProvider {
 
     @Override
     public boolean onCreate() {
-        Log.i("RokidTouchBridge", "TouchInitProvider onCreate");
-        // 加载 JNI 桥接库 — 触发 JNI_OnLoad 在主线程安全获取 JavaVM
-        try { System.loadLibrary("rokid_jni"); } catch (Exception e) {
-            Log.e("RokidTouchBridge", "Failed to load librokid_jni.so", e);
+        Log.i("RokidTouchBridge", "[Step 1/5] TouchInitProvider onCreate — about to load librokid_jni.so");
+        try {
+            System.loadLibrary("rokid_jni");
+            Log.i("RokidTouchBridge", "[Step 1/5] OK — librokid_jni.so loaded successfully");
+        } catch (Exception e) {
+            Log.e("RokidTouchBridge", "[Step 1/5] FAILED — librokid_jni.so load error", e);
         }
+        Log.i("RokidTouchBridge", "[Step 1/5] calling RokidTouchBridge.init()");
         RokidTouchBridge.init();
         return true;
     }

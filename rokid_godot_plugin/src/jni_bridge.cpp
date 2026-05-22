@@ -8,17 +8,31 @@
  *     → 拿到安全 JavaVM → 任意线程 JNI 调用
  */
 #include <jni.h>
+#include <android/log.h>
+
+#define TAG "RokidJNI"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 static JavaVM* g_jvm = nullptr;
 
 extern "C" {
 
 jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
+    LOGI("[Step 2/5] JNI_OnLoad called — JavaVM=%p", vm);
     g_jvm = vm;
+
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        LOGE("[Step 2/5] FAILED: GetEnv returned error");
+        return JNI_ERR;
+    }
+    LOGI("[Step 2/5] OK — JavaVM cached, JNI_VERSION_1_6 verified");
     return JNI_VERSION_1_6;
 }
 
 JavaVM* rokid_get_jvm() {
+    LOGI("[Bridge] rokid_get_jvm() called — returning %p", g_jvm);
     return g_jvm;
 }
 
