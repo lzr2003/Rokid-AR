@@ -18,7 +18,7 @@ static JavaVM* g_jvm = nullptr;
 
 extern "C" {
 
-jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     LOGI("[Step 2/5] JNI_OnLoad called — JavaVM=%p", vm);
     g_jvm = vm;
 
@@ -31,7 +31,7 @@ jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     return JNI_VERSION_1_6;
 }
 
-JavaVM* rokid_get_jvm() {
+__attribute__((visibility("default"))) JavaVM* rokid_get_jvm() {
     LOGI("[Bridge] rokid_get_jvm() called — returning %p", g_jvm);
     return g_jvm;
 }
