@@ -7,6 +7,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <android/log.h>
 
 // Linux evdev event 结构（24 字节，64-bit）
 struct input_event {
@@ -24,6 +25,9 @@ struct input_event {
 #define ABS_MT_POSITION_Y  0x36
 #define ABS_MT_TRACKING_ID 0x39
 #define SYN_REPORT         0
+
+#define ROKID_LOG_EV(...) __android_log_print(ANDROID_LOG_INFO, "RokidEvdev", __VA_ARGS__)
+#define ROKID_ERR_EV(...) __android_log_print(ANDROID_LOG_ERROR, "RokidEvdev", __VA_ARGS__)
 
 // ============================================================
 // 直接读取 /dev/input/event4 evdev 触控板数据
@@ -46,10 +50,10 @@ static void _evdev_open() {
     if (g_evdev_fd >= 0) return;
     g_evdev_fd = open("/dev/input/event4", O_RDONLY | O_NONBLOCK);
     if (g_evdev_fd < 0) {
-        ROKID_ERR("[Evdev] open /dev/input/event4 failed, errno=", errno);
+        ROKID_ERR_EV("[Evdev] open /dev/input/event4 failed, errno=", errno);
         return;
     }
-    ROKID_LOG("[Evdev] /dev/input/event4 opened, fd=", g_evdev_fd);
+    ROKID_LOG_EV("[Evdev] /dev/input/event4 opened, fd=", g_evdev_fd);
     g_evdev_ready = true;
 }
 
@@ -114,7 +118,7 @@ static void _evdev_read() {
 
     static int log_count = 0;
     if (any_event && ++log_count % 30 == 0) {
-        ROKID_LOG("[Evdev] state=", g_evdev_state,
+        ROKID_LOG_EV("[Evdev] state=", g_evdev_state,
             " finger=", (int)g_evdev_finger_down,
             " x=", g_evdev_cur_x, " y=", g_evdev_cur_y,
             " dx=", g_evdev_dx, " dy=", g_evdev_dy);
