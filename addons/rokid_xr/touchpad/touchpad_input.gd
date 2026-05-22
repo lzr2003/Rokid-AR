@@ -25,11 +25,9 @@ var _last_event_type: String = "none"
 var _joy_log_timer: float = 0.0
 var _xr_log_timer: float = 0.0
 
-# OpenXR Action 节点引用（从场景中查找）
-var _touch_pos_action: OpenXRAction = null
-var _click_action: OpenXRAction = null
-var _touch_action: OpenXRAction = null
-var _actions_found: bool = false
+# XRController3D 节点引用（从场景中查找，tracker = "right_hand"）
+var _xr_controller: XRController3D = null
+var _controller_scanned: bool = false
 var _actions_log_timer: float = 0.0
 
 
@@ -308,82 +306,69 @@ func _poll_xr_tracker(delta: float) -> void:
 func _poll_openxr_actions(delta: float) -> void:
 	_actions_log_timer += delta
 
-	# 懒加载：从场景树中查找 OpenXRAction 节点
-	if not _actions_found:
-		_find_action_nodes()
+	# 懒加载：从场景树中查找 XRController3D (tracker = "right_hand")
+	if not _controller_scanned:
+		_find_controller_node()
 
-	if _touch_pos_action == null or _click_action == null:
+	if _xr_controller == null:
 		return
 
 	# 周期性日志（每 3 秒）
 	if _actions_log_timer > 3.0:
 		_actions_log_timer = 0.0
-		var pos := _touch_pos_action.get_vector2() if _touch_pos_action else Vector2.ZERO
-		var clicked := _click_action.get_bool() if _click_action else false
-		var touched := _touch_action.get_bool() if _touch_action else false
+		var pos: Vector2 = _xr_controller.get_vector2("primary")
+		var clicked: bool = _xr_controller.is_button_pressed("primary_click")
+		var touched: bool = _xr_controller.is_button_pressed("primary_touch")
 		print("[TouchpadInput] OpenXR Action: pos=%s click=%s touch=%s" % [pos, clicked, touched])
 
 	# 读取 trackpad 位置
-	if _touch_pos_action:
-		var pos := _touch_pos_action.get_vector2()
-		if pos.length() > 0.01:
-			_emit_moved(pos)
+	var pos: Vector2 = _xr_controller.get_vector2("primary")
+	if pos.length() > 0.01:
+		_emit_moved(pos)
 
 	# 读取按下/释放
-	if _click_action:
-		var clicked := _click_action.get_bool()
-		if clicked and not _is_touching:
-			_is_touching = true
-			print("[TouchpadInput] OpenXR Action PRESSED (primary_click)")
-			touchpad_pressed.emit()
-		elif not clicked and _is_touching:
-			_is_touching = false
-			print("[TouchpadInput] OpenXR Action RELEASED (primary_click)")
-			touchpad_released.emit()
+	var clicked: bool = _xr_controller.is_button_pressed("primary_click")
+	if clicked and not _is_touching:
+		_is_touching = true
+		print("[TouchpadInput] OpenXR Action PRESSED (primary_click)")
+		touchpad_pressed.emit()
+	elif not clicked and _is_touching:
+		_is_touching = false
+		print("[TouchpadInput] OpenXR Action RELEASED (primary_click)")
+		touchpad_released.emit()
 
 	# touch 检测（手指接触）
-	if _touch_action:
-		var touched := _touch_action.get_bool()
-		if touched and not _is_touching:
-			_is_touching = true
-			print("[TouchpadInput] OpenXR Action TOUCH (primary_touch)")
-			touchpad_pressed.emit()
-		elif not touched and _is_touching:
-			_is_touching = false
-			print("[TouchpadInput] OpenXR Action UNTOUCH (primary_touch)")
-			touchpad_released.emit()
+	var touched: bool = _xr_controller.is_button_pressed("primary_touch")
+	if touched and not _is_touching:
+		_is_touching = true
+		print("[TouchpadInput] OpenXR Action TOUCH (primary_touch)")
+		touchpad_pressed.emit()
+	elif not touched and _is_touching:
+		_is_touching = false
+		print("[TouchpadInput] OpenXR Action UNTOUCH (primary_touch)")
+		touchpad_released.emit()
 
 
-func _find_action_nodes() -> void:
-	_actions_found = true
+func _find_controller_node() -> void:
+	_controller_scanned = true
 	var root := get_tree().root if get_tree() else null
 	if root == null:
 		return
 
-	# 递归搜索场景树中的 OpenXRAction 节点
+	# 搜索场景树中 tracker == "right_hand" 的 XRController3D
 	var to_visit: Array[Node] = [root]
 	while not to_visit.is_empty():
 		var node := to_visit.pop_back()
-		if node is OpenXRAction:
-			var action: OpenXRAction = node as OpenXRAction
-			match action.action:
-				"primary":
-					_touch_pos_action = action
-				"primary_click":
-					_click_action = action
-				"primary_touch":
-					_touch_action = action
+		if node is XRController3D:
+			var ctrl: XRController3D = node as XRController3D
+			if ctrl.tracker == "right_hand":
+				_xr_controller = ctrl
+				print("[TouchpadInput] XRController3D (right_hand) FOUND — '%s'" % ctrl.name)
+				return
 		for child in node.get_children():
 			to_visit.push_back(child)
 
-	if _touch_pos_action:
-		print("[TouchpadInput] OpenXR Action 'primary' FOUND (trackpad pos)")
-	else:
-		print("[TouchpadInput] OpenXR Action 'primary' NOT FOUND")
-	if _click_action:
-		print("[TouchpadInput] OpenXR Action 'primary_click' FOUND")
-	if _touch_action:
-		print("[TouchpadInput] OpenXR Action 'primary_touch' FOUND")
+	print("[TouchpadInput] XRController3D (right_hand) NOT FOUND in scene tree")
 
 
 func _poll_joypad(delta: float) -> void:
