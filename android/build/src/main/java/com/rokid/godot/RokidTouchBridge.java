@@ -26,24 +26,22 @@ public class RokidTouchBridge {
         if (sInitDone) return;
         sInitDone = true;
 
-        // 使用 /data/local/tmp/ 不需要任何权限
         sTouchFile = new File("/data/local/tmp/rokid_touch_state.txt");
 
-        // 1. 注册 VirtualController (Mouse 模式, type=5)
-        // args 数组里每个元素必须是 JSON 字符串，不是 JSON 对象
+        // 1. 注册 VirtualController
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
             "\"{\\\"name\\\":\\\"type\\\",\\\"value\\\":\\\"5\\\"}\"]}";
-        UnityCallBridge.onUnityCall(regJson);
+        Log.i("RokidTouchBridge", "registerFrag result: " + UnityCallBridge.onUnityCall(regJson));
 
         // 2. 注册触控回调
-        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\"," +
-            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\"}}";
-        UnityCallBridge.onUnityCall(touchJson);
+        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\",\"args\":[]," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\",\"param\":null}}";
+        Log.i("RokidTouchBridge", "setOnTouchListener result: " + UnityCallBridge.onUnityCall(touchJson));
 
         // 3. 注册滚动回调
-        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\"," +
-            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\"}}";
-        UnityCallBridge.onUnityCall(scrollJson);
+        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\",\"args\":[]," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\",\"param\":null}}";
+        Log.i("RokidTouchBridge", "setOnScrollListener result: " + UnityCallBridge.onUnityCall(scrollJson));
 
         Log.i("RokidTouchBridge", "VirtualController registered");
     }
@@ -51,6 +49,7 @@ public class RokidTouchBridge {
     // TouchReceiver 回调
 
     public static void onTouchEvent(String type, float x, float y) {
+        Log.d("RokidTouchBridge", "onTouchEvent type=" + type + " x=" + x + " y=" + y);
         synchronized (sLock) {
             if ("down".equals(type)) {
                 sTouchState = 1;
@@ -71,6 +70,7 @@ public class RokidTouchBridge {
     }
 
     public static void onScrollEvent(float dx, float dy) {
+        Log.d("RokidTouchBridge", "onScrollEvent dx=" + dx + " dy=" + dy);
         synchronized (sLock) {
             sDeltaX = dx;
             sDeltaY = dy;

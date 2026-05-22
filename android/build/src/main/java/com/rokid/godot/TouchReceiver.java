@@ -10,7 +10,10 @@ import org.json.JSONObject;
  */
 public class TouchReceiver {
 
+    static { Log.i("TouchReceiver", "CLASS LOADED"); }
+
     public static void onTouch(String json) {
+        Log.i("TouchReceiver", "onTouch CALLED: " + (json != null ? json.substring(0, Math.min(100, json.length())) : "null"));
         try {
             JSONObject obj = new JSONObject(json);
             String type = obj.optString("type", "");
@@ -23,6 +26,7 @@ public class TouchReceiver {
     }
 
     public static void onScroll(String json) {
+        Log.i("TouchReceiver", "onScroll CALLED");
         try {
             JSONObject obj = new JSONObject(json);
             float dx = (float) obj.optDouble("dx", 0);
