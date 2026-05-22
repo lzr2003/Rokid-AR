@@ -39,7 +39,41 @@ public class RokidTouchBridge {
         Log.i("RokidTouchBridge", "VirtualController registered");
     }
 
-    // TouchReceiver 回调
+    // ============ C++ JNI 调用接口 ============
+
+    public static float getDeltaX() {
+        synchronized (sLock) {
+            float v = sDeltaX;
+            sDeltaX = 0.0f;
+            return v;
+        }
+    }
+
+    public static float getDeltaY() {
+        synchronized (sLock) {
+            float v = sDeltaY;
+            sDeltaY = 0.0f;
+            return v;
+        }
+    }
+
+    public static int getTouchState() {
+        synchronized (sLock) {
+            return sTouchState;
+        }
+    }
+
+    public static boolean consumeClick() {
+        synchronized (sLock) {
+            if (sClickPending) {
+                sClickPending = false;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // ============ TouchReceiver 回调 ============
 
     public static void onTouchEvent(String type, float x, float y) {
         Log.d("RokidTouchBridge", "onTouchEvent type=" + type + " x=" + x + " y=" + y);
