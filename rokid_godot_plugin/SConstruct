@@ -41,8 +41,8 @@ if env["platform"] == "android":
                 '<?xml version="1.0" encoding="utf-8"?>\n'
                 '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n'
                 '    package="com.rokid.godot.rokid_jni_bridge" />\n')
-            for s in source:
-                so_path = str(s)
+            for t in target:  # target 是最终 .so，source 是中间 .os（不能用！）
+                so_path = str(t)
                 # System.loadLibrary("rokid_jni") 查找 librokid_jni.so，不含平台后缀
                 zf.write(so_path, "jni/arm64-v8a/librokid_jni.so")
     jni_env.AddPostAction(jni_lib, package_jni_aar)
