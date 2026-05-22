@@ -35,10 +35,15 @@ if env["platform"] == "android":
         aar_dir = os.path.join(sc_dir, "..", "android", "plugins")
         aar_path = os.path.join(aar_dir, "rokid_jni_bridge.aar")
         os.makedirs(aar_dir, exist_ok=True)
-        for s in source:
-            so_path = str(s)
-            with zipfile.ZipFile(aar_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                zf.write(so_path, "jni/arm64-v8a/" + os.path.basename(so_path))
+        with zipfile.ZipFile(aar_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            # 必须：AndroidManifest.xml（.aar 硬性要求）
+            zf.writestr("AndroidManifest.xml",
+                '<?xml version="1.0" encoding="utf-8"?>\n'
+                '<manifest xmlns:android="http://schemas.android.com/apk/res/android" />\n')
+            for s in source:
+                so_path = str(s)
+                # System.loadLibrary("rokid_jni") 查找 librokid_jni.so，不含平台后缀
+                zf.write(so_path, "jni/arm64-v8a/librokid_jni.so")
     jni_env.AddPostAction(jni_lib, package_jni_aar)
     Default([gde_lib, jni_lib])
 else:
