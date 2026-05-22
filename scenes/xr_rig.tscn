@@ -11,6 +11,18 @@ size = Vector3(0.06, 0.06, 0.06)
 
 [node name="XRRig" type="XROrigin3D"]
 
+[node name="StationTouchPosAction" type="OpenXRAction" parent="."]
+action = "primary"
+fail_if_not_bound = false
+
+[node name="StationClickAction" type="OpenXRAction" parent="."]
+action = "primary_click"
+fail_if_not_bound = false
+
+[node name="StationTouchAction" type="OpenXRAction" parent="."]
+action = "primary_touch"
+fail_if_not_bound = false
+
 [node name="XRCamera3D" type="XRCamera3D" parent="."]
 
 [node name="ThreeDofRayPose" type="Node3D" parent="XRCamera3D"]
