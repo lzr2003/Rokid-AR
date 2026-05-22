@@ -5,6 +5,135 @@
 #ifdef ANDROID_ENABLED
 #include <jni.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+// Linux evdev event 结构（24 字节，64-bit）
+struct input_event {
+    uint64_t tv_sec;
+    uint64_t tv_usec;
+    uint16_t type;
+    uint16_t code;
+    int32_t  value;
+};
+
+#define EV_SYN             0x00
+#define EV_ABS             0x03
+#define ABS_MT_SLOT        0x2f
+#define ABS_MT_POSITION_X  0x35
+#define ABS_MT_POSITION_Y  0x36
+#define ABS_MT_TRACKING_ID 0x39
+#define SYN_REPORT         0
+
+// ============================================================
+// 直接读取 /dev/input/event4 evdev 触控板数据
+// ============================================================
+static int  g_evdev_fd = -1;
+static bool g_evdev_ready = false;
+
+static float g_evdev_last_x = 0.0f;
+static float g_evdev_last_y = 0.0f;
+static float g_evdev_cur_x  = 0.0f;
+static float g_evdev_cur_y  = 0.0f;
+static float g_evdev_dx     = 0.0f;
+static float g_evdev_dy     = 0.0f;
+static int   g_evdev_state  = 0;      // 0=up, 1=down(click), 2=move, 3=scroll
+static bool  g_evdev_click_pending = false;
+static bool  g_evdev_finger_down    = false;
+static int   g_evdev_slot  = 0;
+
+static void _evdev_open() {
+    if (g_evdev_fd >= 0) return;
+    g_evdev_fd = open("/dev/input/event4", O_RDONLY | O_NONBLOCK);
+    if (g_evdev_fd < 0) {
+        ROKID_ERR("[Evdev] open /dev/input/event4 failed, errno=", errno);
+        return;
+    }
+    ROKID_LOG("[Evdev] /dev/input/event4 opened, fd=", g_evdev_fd);
+    g_evdev_ready = true;
+}
+
+static void _evdev_read() {
+    if (!g_evdev_ready) return;
+
+    bool any_event = false;
+    while (true) {
+        struct input_event ev;
+        ssize_t n = read(g_evdev_fd, &ev, sizeof(ev));
+        if (n <= 0) break;  // no more events (EAGAIN in non-blocking)
+        any_event = true;
+
+        if (ev.type == EV_ABS) {
+            switch (ev.code) {
+                case ABS_MT_SLOT:
+                    g_evdev_slot = ev.value;
+                    break;
+                case ABS_MT_TRACKING_ID:
+                    if (ev.value == -1) {
+                        // 手指抬起
+                        g_evdev_finger_down = false;
+                        g_evdev_state = 0;
+                        g_evdev_dx = 0.0f;
+                        g_evdev_dy = 0.0f;
+                    } else {
+                        // 手指按下
+                        if (!g_evdev_finger_down) {
+                            g_evdev_finger_down = true;
+                            g_evdev_state = 1;
+                            g_evdev_click_pending = true;
+                            g_evdev_dx = 0.0f;
+                            g_evdev_dy = 0.0f;
+                        }
+                    }
+                    break;
+                case ABS_MT_POSITION_X:
+                    g_evdev_cur_x = (float)ev.value;
+                    break;
+                case ABS_MT_POSITION_Y:
+                    g_evdev_cur_y = (float)ev.value;
+                    break;
+            }
+        } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
+            // 一帧触控数据结束，计算 delta
+            if (g_evdev_finger_down && g_evdev_state == 1) {
+                // initial down, record baseline
+                g_evdev_last_x = g_evdev_cur_x;
+                g_evdev_last_y = g_evdev_cur_y;
+                g_evdev_state = 2;  // move mode after first SYN_REPORT
+            } else if (g_evdev_finger_down) {
+                g_evdev_dx = g_evdev_cur_x - g_evdev_last_x;
+                g_evdev_dy = g_evdev_cur_y - g_evdev_last_y;
+                g_evdev_last_x = g_evdev_cur_x;
+                g_evdev_last_y = g_evdev_cur_y;
+                if (fabsf(g_evdev_dx) > 0.1f || fabsf(g_evdev_dy) > 0.1f) {
+                    g_evdev_state = 2;  // moving
+                }
+            }
+        }
+    }
+
+    static int log_count = 0;
+    if (any_event && ++log_count % 30 == 0) {
+        ROKID_LOG("[Evdev] state=", g_evdev_state,
+            " finger=", (int)g_evdev_finger_down,
+            " x=", g_evdev_cur_x, " y=", g_evdev_cur_y,
+            " dx=", g_evdev_dx, " dy=", g_evdev_dy);
+    }
+}
+
+static void _evdev_poll(float& out_dx, float& out_dy, int& out_state, bool& out_click) {
+    _evdev_open();
+    if (!g_evdev_ready) return;
+    _evdev_read();
+    out_dx    = g_evdev_dx;
+    out_dy    = g_evdev_dy;
+    out_state = g_evdev_state;
+    out_click = g_evdev_click_pending;
+    // 消费一次性值
+    g_evdev_dx = 0.0f;
+    g_evdev_dy = 0.0f;
+    g_evdev_click_pending = false;
+}
 #endif
 
 namespace godot {
@@ -245,7 +374,11 @@ void RokidXRExtension::_on_process() {
     float dx = 0, dy = 0;
     int state = 0;
     bool click = false;
-    _poll_touch_data(dx, dy, state, click);
+    // 优先使用 evdev 直接读取，失败则回退 JNI
+    _evdev_poll(dx, dy, state, click);
+    if (!g_evdev_ready) {
+        _poll_touch_data(dx, dy, state, click);
+    }
     _touch_delta_x.store(dx);
     _touch_delta_y.store(dy);
     _touch_state.store(state);

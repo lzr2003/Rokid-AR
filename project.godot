@@ -63,6 +63,7 @@ viewport/transparent_background=true
 [xr]
 
 openxr/enabled=true
+openxr/action_map="res://openxr_action_map.tres"
 openxr/reference_space="local"
 openxr/environment_blend_mode="alpha_blend"
 openxr/foveation_level=0
