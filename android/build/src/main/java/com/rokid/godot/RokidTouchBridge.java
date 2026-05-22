@@ -23,17 +23,17 @@ public class RokidTouchBridge {
 
         // 1. 注册 VirtualController
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
-            "\"{\\\"name\\\":\\\"type\\\",\\\"value\\\":\\\"5\\\"}\"]}";
+            "{\"name\":\"type\",\"value\":\"5\"}]}";
         Log.i("RokidTouchBridge", "registerFrag result: " + UnityCallBridge.onUnityCall(regJson));
 
         // 2. 注册触控回调
-        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\",\"args\":[]," +
-            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\",\"param\":null}}";
+        String touchJson = "{\"name\":\"VirtualController.setOnTouchListener\"," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onTouch\"}}";
         Log.i("RokidTouchBridge", "setOnTouchListener result: " + UnityCallBridge.onUnityCall(touchJson));
 
         // 3. 注册滚动回调
-        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\",\"args\":[]," +
-            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\",\"param\":null}}";
+        String scrollJson = "{\"name\":\"VirtualController.setOnScrollListener\"," +
+            "\"callback\":{\"name\":\"com.rokid.godot.TouchReceiver\",\"method\":\"onScroll\"}}";
         Log.i("RokidTouchBridge", "setOnScrollListener result: " + UnityCallBridge.onUnityCall(scrollJson));
 
         Log.i("RokidTouchBridge", "VirtualController registered");
