@@ -23,6 +23,14 @@ public class RokidTouchBridge {
         if (sInitDone) return;
         sInitDone = true;
 
+        // 0. 确保原生库已加载（JNI_OnLoad 可能触发 Runtime 服务注册到 BridgeMgr）
+        try {
+            System.loadLibrary("rokid_openxr_api");
+            Log.i("RokidTouchBridge", "rokid_openxr_api loaded OK");
+        } catch (Exception e) {
+            Log.e("RokidTouchBridge", "rokid_openxr_api load failed: " + e.getMessage());
+        }
+
         // 1. 注册 VirtualController（args 是 List<String>，必须传 JSON 字符串）
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
             "\"{\\\"name\\\":\\\"type\\\",\\\"value\\\":\\\"5\\\"}\"]}";
