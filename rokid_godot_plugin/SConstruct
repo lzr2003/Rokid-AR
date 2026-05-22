@@ -18,7 +18,7 @@ gde_lib = env.SharedLibrary(
     source=gde_sources,
 )
 
-# 2. JNI 桥接库 — 独立 .so，Java 通过 System.loadLibrary 加载它触发 JNI_OnLoad
+# 2. JNI 桥接库 — 独立 .so，打包为 .aar 供 Godot .gdap 插件系统加载
 if env["platform"] == "android":
     jni_env = env.Clone()
     jni_env.Append(CPPDEFINES=["ANDROID_ENABLED"])
@@ -26,14 +26,17 @@ if env["platform"] == "android":
         "bin/librokid_jni{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
         source=["src/jni_bridge.cpp"],
     )
-    # 自动复制到 android/build/libs/debug 以便 Gradle 打包进 APK
-    import shutil
-    def copy_jni_to_build(target, source, env):
-        dst = "android/build/libs/debug/arm64-v8a"
-        os.makedirs(dst, exist_ok=True)
+    # 打包为 android/plugins/rokid_jni_bridge.aar（Godot 4.3+ .gdap 格式）
+    import zipfile
+    def package_jni_aar(target, source, env):
+        aar_dir = "android/plugins"
+        os.makedirs(aar_dir, exist_ok=True)
+        aar_path = os.path.join(aar_dir, "rokid_jni_bridge.aar")
         for s in source:
-            shutil.copy2(str(s), os.path.join(dst, os.path.basename(str(s))))
-    jni_env.AddPostAction(jni_lib, copy_jni_to_build)
+            so_path = str(s)
+            with zipfile.ZipFile(aar_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.write(so_path, "jni/arm64-v8a/" + os.path.basename(so_path))
+    jni_env.AddPostAction(jni_lib, package_jni_aar)
     Default([gde_lib, jni_lib])
 else:
     Default(gde_lib)

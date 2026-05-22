@@ -5,4 +5,4 @@ binary = "openxr_loader.aar"
 
 [dependencies]
 remote = []
-local = []
+local = ["rokid_jni_bridge.aar"]
