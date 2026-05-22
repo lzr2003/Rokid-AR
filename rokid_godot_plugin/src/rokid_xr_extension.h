@@ -3,7 +3,9 @@
 #include <godot_cpp/classes/open_xrapi_extension.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector3.hpp>
+#include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/quaternion.hpp>
+#include <atomic>
 
 namespace godot {
 
@@ -22,10 +24,10 @@ typedef XrResult (*PFN_xrGetGlassName)(char*, int32_t);
 typedef XrResult (*PFN_xrIsUsbConnect)(uint32_t*);
 typedef XrResult (*PFN_xrGetGlassFirmwareVersion)(char*, int32_t);
 
-class RokidXRExtension : public OpenXRExtensionWrapperExtension  {
-    GDCLASS(RokidXRExtension, OpenXRExtensionWrapperExtension )
+class RokidXRExtension : public OpenXRExtensionWrapperExtension {
+    GDCLASS(RokidXRExtension, OpenXRExtensionWrapperExtension)
 private:
-	static inline RokidXRExtension* s_instance = nullptr;
+    static inline RokidXRExtension* s_instance = nullptr;
     bool rokid_ready = false;
 
     PFN_xrGetHeadPoseRHS        pfn_get_head_pose        = nullptr;
@@ -38,10 +40,19 @@ private:
     PFN_xrIsUsbConnect          pfn_is_usb_connect       = nullptr;
     PFN_xrGetGlassFirmwareVersion pfn_get_glass_fw       = nullptr;
 
+    // 触控数据
+    std::atomic<float> _touch_delta_x{0.0f};
+    std::atomic<float> _touch_delta_y{0.0f};
+    std::atomic<int>   _touch_state{0};
+    std::atomic<bool>  _touch_click_pending{false};
+
+    void _ensure_jni();
+    void _poll_touch_data(float& out_dx, float& out_dy, int& out_state, bool& out_click);
+
 protected:
     static void _bind_methods();
 public:
-	static RokidXRExtension* singleton() { return s_instance; }
+    static RokidXRExtension* singleton() { return s_instance; }
 
     RokidXRExtension();
     ~RokidXRExtension();
@@ -64,6 +75,9 @@ public:
     bool check_usb_connected();
     String get_glass_firmware_version();
 
+    Vector2 get_touch_delta();
+    int get_touch_state();
+    bool consume_touch_click();
 };
 
 } // namespace godot

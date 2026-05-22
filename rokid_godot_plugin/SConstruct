@@ -1,25 +1,39 @@
 #!/usr/bin/env python
 import os
-import sys
 
 env = SConscript("godot-cpp-4.5/SConstruct")
 
-# 1. 包含源文件
-sources = Glob("src/*.cpp")
+# 1. GDExtension 主库 — 包含所有 .cpp 除了 jni_bridge
+gde_sources = Glob("src/*.cpp")
+gde_sources = [s for s in gde_sources if "jni_bridge.cpp" not in str(s)]
 
-# 2. 添加 Rokid 头文件搜索路径
 env.Append(CPPPATH=["thirdparty/rokid/include"])
 
-# 3. 针对 Android arm64 架构的特殊处理 (Rokid Station 环境)
 if env["platform"] == "android" and env["arch"] == "arm64":
-    # 告诉链接器 Rokid 动态库的路径
     env.Append(LIBPATH=["libs/arm64-v8a"])
-    # 链接 libcxr.so (注意：这里写 cxr，不需要 lib 前缀和 .so 后缀)
     env.Append(LIBS=["libopenxr_loader"])
 
-# 4. 生成动态库 (名称为 librokid_bridge)
-library = env.SharedLibrary(
+gde_lib = env.SharedLibrary(
     "bin/libgdextension_rokid{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
-    source=sources,
+    source=gde_sources,
 )
-Default(library)
+
+# 2. JNI 桥接库 — 独立 .so，Java 通过 System.loadLibrary 加载它触发 JNI_OnLoad
+if env["platform"] == "android":
+    jni_env = env.Clone()
+    jni_env.Append(CPPDEFINES=["ANDROID_ENABLED"])
+    jni_lib = jni_env.SharedLibrary(
+        "bin/librokid_jni{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+        source=["src/jni_bridge.cpp"],
+    )
+    # 自动复制到 android/build/libs/debug 以便 Gradle 打包进 APK
+    import shutil
+    def copy_jni_to_build(target, source, env):
+        dst = "android/build/libs/debug/arm64-v8a"
+        os.makedirs(dst, exist_ok=True)
+        for s in source:
+            shutil.copy2(str(s), os.path.join(dst, os.path.basename(str(s))))
+    jni_env.AddPostAction(jni_lib, copy_jni_to_build)
+    Default([gde_lib, jni_lib])
+else:
+    Default(gde_lib)

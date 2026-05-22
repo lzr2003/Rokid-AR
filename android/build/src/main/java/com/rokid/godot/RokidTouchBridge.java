@@ -4,9 +4,6 @@ import android.util.Log;
 
 import com.rokid.unitycallbridge.UnityCallBridge;
 
-import java.io.File;
-import java.io.FileWriter;
-
 public class RokidTouchBridge {
 
     private static volatile boolean sInitDone = false;
@@ -20,13 +17,9 @@ public class RokidTouchBridge {
     private static float sLastX = 0.0f;
     private static float sLastY = 0.0f;
 
-    private static File sTouchFile = null;
-
     public static void init() {
         if (sInitDone) return;
         sInitDone = true;
-
-        sTouchFile = new File("/data/local/tmp/rokid_touch_state.txt");
 
         // 1. 注册 VirtualController
         String regJson = "{\"name\":\"VirtualController.registerFrag\",\"args\":[" +
@@ -66,7 +59,6 @@ public class RokidTouchBridge {
                 sDeltaX = 0; sDeltaY = 0;
             }
         }
-        writeState();
     }
 
     public static void onScrollEvent(float dx, float dy) {
@@ -76,25 +68,5 @@ public class RokidTouchBridge {
             sDeltaY = dy;
             sTouchState = 3;
         }
-        writeState();
-    }
-
-    private static void writeState() {
-        if (sTouchFile == null) return;
-        try {
-            float dx, dy;
-            int state;
-            boolean click;
-            synchronized (sLock) {
-                dx = sDeltaX; sDeltaX = 0;
-                dy = sDeltaY; sDeltaY = 0;
-                state = sTouchState;
-                click = sClickPending; sClickPending = false;
-            }
-            String line = String.format("%.3f %.3f %d %d", dx, dy, state, click ? 1 : 0);
-            FileWriter fw = new FileWriter(sTouchFile, false);
-            fw.write(line);
-            fw.close();
-        } catch (Exception ex) {}
     }
 }
